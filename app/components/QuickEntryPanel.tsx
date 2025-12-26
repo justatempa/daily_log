@@ -86,7 +86,7 @@ export default function QuickEntryPanel({ onSend }: QuickEntryPanelProps) {
     setSelected: (value: string[]) => void
   ) => (
     <div className="flex items-center gap-1">
-      <label className="text-xs font-medium text-gray-700 w-10 flex-shrink-0">
+      <label className="text-[0.6rem] font-medium text-gray-700 w-8 flex-shrink-0">
         {label}
       </label>
       <div className="flex flex-wrap gap-1">
@@ -95,7 +95,7 @@ export default function QuickEntryPanel({ onSend }: QuickEntryPanelProps) {
             key={option}
             type="button"
             onClick={() => toggleOption(option, selected, setSelected)}
-            className={`px-1.5 py-0.5 text-xs rounded border transition-colors ${
+            className={`px-1 py-0.5 text-[0.6rem] rounded border transition-colors ${
               selected.includes(option)
                 ? 'bg-[#4F46E5]/20 border-[#4F46E5]'
                 : 'border-gray-200 hover:bg-gray-50'
@@ -109,25 +109,25 @@ export default function QuickEntryPanel({ onSend }: QuickEntryPanelProps) {
   );
 
   return (
-    <div className="bg-white rounded-xl shadow-lg p-2 flex-shrink-0" style={{ width: '240px' }}>
-      <h3 className="text-xs font-semibold text-[#1E293B] mb-2 flex items-center gap-1">
-        <i className="fa fa-bolt text-[#4F46E5]"></i>
+    <div className="bg-white rounded-lg shadow-md p-1.5 flex-shrink-0" style={{ width: '220px' }}>
+      <h3 className="text-[0.6rem] font-semibold text-[#1E293B] mb-1.5 flex items-center gap-1">
+        <i className="fa fa-bolt text-[#4F46E5] text-xs"></i>
         快速输入
       </h3>
 
-      <div className="space-y-1.5">
+      <div className="space-y-1">
         {renderOptions('天气', weatherOptions, selectedWeather, setSelectedWeather)}
         {renderOptions('心情', moodOptions, selectedMood, setSelectedMood)}
         {renderOptions('任务', taskOptions, selectedTask, setSelectedTask)}
         {renderOptions('活动', activityOptions, selectedActivity, setSelectedActivity)}
-        {renderOptions('维生素', vitaminOptions, selectedVitamin, setSelectedVitamin)}
+        {renderOptions('维C', vitaminOptions, selectedVitamin, setSelectedVitamin)}
 
         <button
           onClick={handleSend}
           disabled={!hasSelection() || isSending}
-          className="w-full bg-[#4F46E5] text-white px-2 py-1 rounded-lg hover:bg-[#4F46E5]/90 transition-colors shadow-md hover:shadow-lg flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed text-xs mt-2"
+          className="w-full bg-[#4F46E5] text-white px-2 py-1 rounded-md hover:bg-[#4F46E5]/90 transition-colors shadow-sm flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed text-[0.6rem] mt-1.5"
         >
-          <i className={`fa ${isSending ? 'fa-spinner fa-spin' : 'fa-paper-plane'}`}></i>
+          <i className={`fa ${isSending ? 'fa-spinner fa-spin text-[0.5rem]' : 'fa-paper-plane text-[0.5rem]'}`}></i>
           <span>{isSending ? '发送中...' : '发送'}</span>
         </button>
       </div>

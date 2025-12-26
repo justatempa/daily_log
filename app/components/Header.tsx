@@ -110,28 +110,22 @@ export default function Header({
   const { year, month, day, weekday } = formatDate(currentDate);
 
   return (
-    <div className="card-elevated p-6 animate-fade-in">
-      <div className="flex items-start justify-between mb-6">
-        <div className="flex-1">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-12 h-12 rounded-2xl gradient-primary flex items-center justify-center shadow-lg">
-              <i className="fas fa-calendar-alt text-white text-xl"></i>
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-dark">日志记录</h1>
-              <p className="text-sm text-neutral-500">记录每一天的精彩时刻</p>
-            </div>
+    <div className="card-elevated p-4 animate-fade-in">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center shadow-sm">
+            <i className="fas fa-calendar-alt text-white text-base"></i>
           </div>
-
-          <div className="flex items-baseline gap-3 mt-4">
+          <div>
+            <h1 className="text-lg font-bold text-dark">日志记录</h1>
             <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-bold text-primary-600">{day}</span>
-              <span className="text-lg text-neutral-500">
+              <span className="text-xl font-bold text-primary-600">{day}</span>
+              <span className="text-xs text-neutral-500">
                 {year}.{month}
               </span>
-            </div>
-            <div className="px-3 py-1 rounded-lg bg-primary-50 text-primary-600 text-sm font-medium">
-              {weekday}
+              <span className="px-2 py-0.5 rounded-md bg-primary-50 text-primary-600 text-xs font-medium">
+                {weekday}
+              </span>
             </div>
           </div>
         </div>
@@ -140,14 +134,14 @@ export default function Header({
           <button
             type="button"
             onClick={() => setMenuOpen(!menuOpen)}
-            className="w-10 h-10 rounded-xl bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center transition-colors"
+            className="w-9 h-9 rounded-lg bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center transition-colors"
             aria-label="功能菜单"
           >
             <i className={`fas ${menuOpen ? 'fa-times' : 'fa-ellipsis-v'} text-neutral-700`}></i>
           </button>
 
           {menuOpen && (
-            <div className="absolute right-0 top-12 w-48 card-elevated p-2 z-50 animate-scale-in">
+            <div className="absolute right-0 top-10 w-44 card-elevated p-1.5 z-50 animate-scale-in">
               {actions.map((action) => (
                 <button
                   key={action.label}
@@ -158,7 +152,7 @@ export default function Header({
                     action.handler?.();
                     setMenuOpen(false);
                   }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-neutral-50 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-neutral-50 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                 >
                   <i
                     className={`fas ${

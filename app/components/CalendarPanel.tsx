@@ -91,7 +91,7 @@ export default function CalendarPanel({
       days.push(
         <div
           key={`prev-${day}`}
-          className="flex items-center justify-center h-10 w-10 rounded-xl text-neutral-300 text-sm cursor-default"
+          className="flex items-center justify-center h-8 w-8 rounded-lg text-neutral-300 text-xs cursor-default"
         >
           {day}
         </div>
@@ -111,12 +111,12 @@ export default function CalendarPanel({
       );
       const holidayTooltip = formatHolidayTooltip(dayHolidays);
 
-      let dayClasses = 'flex flex-col items-center justify-center h-10 w-10 rounded-xl transition-all duration-200 cursor-pointer relative text-sm font-medium';
+      let dayClasses = 'flex flex-col items-center justify-center h-8 w-8 rounded-lg transition-all duration-200 cursor-pointer relative text-xs font-medium';
 
       if (isSelected) {
-        dayClasses += ' gradient-primary text-white shadow-lg scale-110';
+        dayClasses += ' gradient-primary text-white shadow-md scale-105';
       } else if (isToday) {
-        dayClasses += ' bg-primary-50 text-primary-600 ring-2 ring-primary-200';
+        dayClasses += ' bg-primary-50 text-primary-600 ring-1 ring-primary-200';
       } else {
         dayClasses += ' text-neutral-700 hover:bg-neutral-100';
       }
@@ -130,7 +130,7 @@ export default function CalendarPanel({
         >
           <span>{i}</span>
           {(hasRecord || hasHoliday) && (
-            <div className="absolute bottom-1 flex gap-0.5">
+            <div className="absolute bottom-0.5 flex gap-0.5">
               {hasRecord && (
                 <span className="w-1 h-1 rounded-full bg-primary-400" />
               )}
@@ -153,7 +153,7 @@ export default function CalendarPanel({
       days.push(
         <div
           key={`next-${i}`}
-          className="flex items-center justify-center h-10 w-10 rounded-xl text-neutral-300 text-sm cursor-default"
+          className="flex items-center justify-center h-8 w-8 rounded-lg text-neutral-300 text-xs cursor-default"
         >
           {i}
         </div>
@@ -164,36 +164,36 @@ export default function CalendarPanel({
   };
 
   return (
-    <div className="card-elevated p-5 animate-slide-up">
-      <div className="flex justify-between items-center mb-5">
+    <div className="card-elevated p-3.5 animate-slide-up">
+      <div className="flex justify-between items-center mb-3">
         <button
           onClick={prevMonth}
-          className="w-9 h-9 rounded-xl bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+          className="w-8 h-8 rounded-lg bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center transition-all hover:scale-105 active:scale-95"
           aria-label="上个月"
         >
-          <i className="fas fa-chevron-left text-neutral-600 text-sm"></i>
+          <i className="fas fa-chevron-left text-neutral-600 text-xs"></i>
         </button>
 
         <div className="text-center">
-          <div className="text-lg font-bold text-dark">{year}年</div>
-          <div className="text-2xl font-bold text-primary-600">{month + 1}月</div>
+          <div className="text-base font-bold text-dark">{year}年</div>
+          <div className="text-lg font-bold text-primary-600">{month + 1}月</div>
         </div>
 
         <button
           onClick={nextMonth}
-          className="w-9 h-9 rounded-xl bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+          className="w-8 h-8 rounded-lg bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center transition-all hover:scale-105 active:scale-95"
           aria-label="下个月"
         >
-          <i className="fas fa-chevron-right text-neutral-600 text-sm"></i>
+          <i className="fas fa-chevron-right text-neutral-600 text-xs"></i>
         </button>
       </div>
 
       {/* Week days */}
-      <div className="grid grid-cols-7 gap-1 mb-3">
+      <div className="grid grid-cols-7 gap-0.5 mb-2">
         {['日', '一', '二', '三', '四', '五', '六'].map((day, index) => (
           <div
             key={day}
-            className={`text-center text-xs font-semibold ${
+            className={`text-center text-[0.6rem] font-semibold ${
               index === 0 || index === 6 ? 'text-primary-500' : 'text-neutral-500'
             }`}
           >
@@ -203,21 +203,21 @@ export default function CalendarPanel({
       </div>
 
       {/* Calendar days */}
-      <div className="grid grid-cols-7 gap-1 mb-4">{renderCalendarDays()}</div>
+      <div className="grid grid-cols-7 gap-0.5 mb-3">{renderCalendarDays()}</div>
 
       {/* Legend */}
-      <div className="flex justify-between items-center pt-4 border-t border-neutral-200">
-        <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-primary-400" />
-          <span className="text-xs text-neutral-600">记录</span>
+      <div className="flex justify-between items-center pt-2.5 border-t border-neutral-200">
+        <div className="flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-primary-400" />
+          <span className="text-[0.6rem] text-neutral-600">记录</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-rose-400" />
-          <span className="text-xs text-neutral-600">假期</span>
+        <div className="flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+          <span className="text-[0.6rem] text-neutral-600">假期</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-amber-400" />
-          <span className="text-xs text-neutral-600">补班</span>
+        <div className="flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+          <span className="text-[0.6rem] text-neutral-600">补班</span>
         </div>
       </div>
     </div>

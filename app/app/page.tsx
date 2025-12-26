@@ -183,23 +183,35 @@ export default function Home() {
       status: 'pending',
     };
 
+    // 乐观更新：立即添加到UI
     setCurrentEntries((prev) => [...prev, optimisticEntry]);
     const dateString = formatDate(selectedDate);
 
     try {
       const savedEntry = await createEntry(userId, dateString, message, source);
+      // 更新UI中的条目
       setCurrentEntries((prev) =>
         prev.map((entry) =>
           entry.id === optimisticId ? { ...savedEntry, status: 'saved' } : entry
         )
       );
 
+      // 更新记录日期，如果需要的话
       setRecordDates((prev) =>
         prev.includes(dateString) ? prev : [...prev, dateString]
       );
       showToast('记录已添加', 'success');
+      
+      // 滚动到最新条目
+      setTimeout(() => {
+        const timelineElement = document.getElementById('timeline');
+        if (timelineElement) {
+          timelineElement.scrollTop = timelineElement.scrollHeight;
+        }
+      }, 100);
     } catch (error) {
       console.error('Error adding record:', error);
+      // 更新UI显示错误状态
       setCurrentEntries((prev) =>
         prev.map((entry) =>
           entry.id === optimisticId
@@ -553,10 +565,10 @@ export default function Home() {
   return (
     <>
       <div className="min-h-screen">
-        <div className="container mx-auto px-4 py-8 max-w-7xl">
-          <main className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6 mb-28">
+        <div className="container mx-auto px-3 py-6 max-w-7xl">
+          <main className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4 mb-24">
             {/* 左列：Header + Timeline */}
-            <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-4">
               <Header
                 currentDate={selectedDate}
                 onSetToken={handleSetMemosToken}
@@ -569,10 +581,10 @@ export default function Home() {
                 isSavingToMemos={syncingMemos}
                 isExporting={exportingRecords}
               />
-              <section className="card-elevated p-6 overflow-hidden">
+              <section className="card-elevated p-4 overflow-hidden">
                 <div
                   id="timeline"
-                  className="max-h-[calc(100vh-400px)] overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar"
+                  className="max-h-[calc(100vh-340px)] overflow-y-auto overflow-x-hidden pr-1.5 custom-scrollbar"
                 >
                   {isLoading ? (
                     <TimelineSkeleton />
@@ -590,14 +602,14 @@ export default function Home() {
             </div>
 
             {/* 右列：Calendar + QuickEntry */}
-            <aside className="flex flex-col gap-6">
+            <aside className="flex flex-col gap-4">
               <CalendarPanel
                 selectedDate={selectedDate}
                 onDateSelect={setSelectedDate}
                 recordDates={recordDates}
                 holidays={holidays}
               />
-              <div className="card-elevated p-4">
+              <div className="card-elevated p-3">
                 <QuickEntryPanel onSend={handleQuickSend} />
               </div>
             </aside>
