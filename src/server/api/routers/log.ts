@@ -13,7 +13,7 @@ const dayRange = (date: Date) => {
 export const logRouter = router({
   getAll: protectedProcedure.query(({ ctx }) => {
     return ctx.db.log.findMany({
-      where: { userId: ctx.session.user.id },
+      where: { userId: ctx.session!.user.id },
       orderBy: { createdAt: "asc" },
     });
   }),
@@ -23,7 +23,7 @@ export const logRouter = router({
       const { start, end } = dayRange(input.date);
       return ctx.db.log.findMany({
         where: {
-          userId: ctx.session.user.id,
+          userId: ctx.session!.user.id,
           parentId: null,
           date: { gte: start, lt: end },
         },
@@ -38,7 +38,7 @@ export const logRouter = router({
     .query(({ ctx, input }) => {
       return ctx.db.log.findMany({
         where: {
-          userId: ctx.session.user.id,
+          userId: ctx.session!.user.id,
           parentId: input.logId,
         },
         orderBy: { createdAt: "asc" },
@@ -63,7 +63,7 @@ export const logRouter = router({
     .mutation(({ ctx, input }) => {
       return ctx.db.log.create({
         data: {
-          userId: ctx.session.user.id,
+          userId: ctx.session!.user.id,
           content: input.content ?? "",
           date: input.date,
           tags: input.tags ?? "",
@@ -77,7 +77,7 @@ export const logRouter = router({
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const log = await ctx.db.log.findFirst({
-        where: { id: input.id, userId: ctx.session.user.id },
+        where: { id: input.id, userId: ctx.session!.user.id },
       });
       if (!log) {
         throw new TRPCError({ code: "NOT_FOUND" });
@@ -104,7 +104,7 @@ export const logRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const log = await ctx.db.log.findFirst({
-        where: { id: input.id, userId: ctx.session.user.id },
+        where: { id: input.id, userId: ctx.session!.user.id },
       });
       if (!log) {
         throw new TRPCError({ code: "NOT_FOUND" });
@@ -121,13 +121,13 @@ export const logRouter = router({
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const log = await ctx.db.log.findFirst({
-        where: { id: input.id, userId: ctx.session.user.id },
+        where: { id: input.id, userId: ctx.session!.user.id },
       });
       if (!log) {
         throw new TRPCError({ code: "NOT_FOUND" });
       }
       await ctx.db.log.deleteMany({
-        where: { parentId: input.id, userId: ctx.session.user.id },
+        where: { parentId: input.id, userId: ctx.session!.user.id },
       });
       await ctx.db.log.delete({ where: { id: input.id } });
       return { id: input.id };
@@ -151,7 +151,7 @@ export const logRouter = router({
       }
       const result = await ctx.db.log.createMany({
         data: input.items.map((item) => ({
-          userId: ctx.session.user.id,
+          userId: ctx.session!.user.id,
           content: item.content,
           date: item.date,
           tags: item.tags ?? "",
