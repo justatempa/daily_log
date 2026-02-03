@@ -48,7 +48,7 @@ export const userRouter = router({
     .input(z.object({ secretKey: z.string().min(1) }))
     .mutation(({ ctx, input }) => {
       return ctx.db.user.update({
-        where: { id: ctx.session.user.id },
+        where: { id: ctx.session!.user.id },
         data: { secretKey: input.secretKey },
       });
     }),

@@ -4,7 +4,7 @@ import { protectedProcedure, router } from "@/server/api/trpc";
 export const quickTagRouter = router({
   getGrouped: protectedProcedure.query(async ({ ctx }) => {
     const tags = await ctx.db.quickTag.findMany({
-      where: { userId: ctx.session.user.id },
+      where: { userId: ctx.session!.user.id },
       orderBy: [{ categoryName: "asc" }, { label: "asc" }],
     });
     const grouped: Record<string, string[]> = {};
@@ -26,7 +26,7 @@ export const quickTagRouter = router({
     .mutation(({ ctx, input }) => {
       return ctx.db.quickTag.create({
         data: {
-          userId: ctx.session.user.id,
+          userId: ctx.session!.user.id,
           label: input.label,
           categoryName: input.categoryName,
         },
@@ -37,7 +37,7 @@ export const quickTagRouter = router({
     .mutation(({ ctx, input }) => {
       return ctx.db.quickTag.updateMany({
         where: {
-          userId: ctx.session.user.id,
+          userId: ctx.session!.user.id,
           categoryName: input.oldName,
         },
         data: { categoryName: input.newName },
