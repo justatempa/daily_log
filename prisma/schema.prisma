@@ -1,0 +1,55 @@
+// Prisma schema for SQLite
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id         String   @id @default(cuid())
+  email      String   @unique
+  name       String
+  password   String
+  role       String   @default("USER")
+  secretKey  String?
+  memosToken String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  logs      Log[]
+  quickTags QuickTag[]
+}
+
+model Log {
+  id        String   @id @default(cuid())
+  userId    String
+  content   String
+  date      DateTime
+  tags      String
+  isTodo    Boolean  @default(false)
+  isTodoDone Boolean @default(false)
+
+  parentId String?
+  parent   Log?     @relation("LogComments", fields: [parentId], references: [id])
+  replies  Log[]    @relation("LogComments")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model QuickTag {
+  id           String   @id @default(cuid())
+  userId       String
+  label        String
+  categoryName String
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}

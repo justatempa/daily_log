@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__sequential-thinking__sequentialthinking",
+      "Bash(npx create-next-app:*)",
+      "Skill(frontend-design)",
+      "Bash(npm run dev)",
+      "Bash(npm install:*)",
+      "mcp__chrome-dev-tool__get_windows_and_tabs",
+      "mcp__chrome-dev-tool__chrome_navigate",
+      "mcp__chrome-dev-tool__chrome_get_web_content",
+      "mcp__chrome-dev-tool__chrome_screenshot",
+      "Bash(cat:*)",
+      "Bash(taskkill:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(dir:*)",
+      "Bash(npm run:*)"
+    ]
+  }
+}
