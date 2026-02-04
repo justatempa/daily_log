@@ -64,10 +64,18 @@ export default function DashboardPage() {
 
   const onSubmit = () => {
     if (!message.trim()) return;
+    const now = new Date();
+    const entryDate = new Date(selectedDate);
+    entryDate.setHours(
+      now.getHours(),
+      now.getMinutes(),
+      now.getSeconds(),
+      now.getMilliseconds(),
+    );
     addLog.mutate(
       {
         content: message.trim(),
-        date: selectedDate,
+        date: entryDate,
         tags: "",
         isTodo,
       },
@@ -83,11 +91,19 @@ export default function DashboardPage() {
   };
 
   const onQuickSend = (tags: TagGroup[]) => {
+    const now = new Date();
+    const entryDate = new Date(selectedDate);
+    entryDate.setHours(
+      now.getHours(),
+      now.getMinutes(),
+      now.getSeconds(),
+      now.getMilliseconds(),
+    );
     addLog.mutate(
       {
         content: "",
         tags: serializeTagGroups(tags),
-        date: selectedDate,
+        date: entryDate,
       },
       {
         onSuccess: async () => {
