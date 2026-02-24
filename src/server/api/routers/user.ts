@@ -1,6 +1,7 @@
 ﻿import { z } from "zod";
 import { adminProcedure, protectedProcedure, router } from "@/server/api/trpc";
 import { hash } from "bcryptjs";
+import { generateApiToken } from "@/server/openapi/token";
 
 export const userRouter = router({
   list: adminProcedure.query(({ ctx }) => {
@@ -52,4 +53,26 @@ export const userRouter = router({
         data: { secretKey: input.secretKey },
       });
     }),
+  getApiToken: protectedProcedure.query(async ({ ctx }) => {
+    const user = await ctx.db.user.findUnique({
+      where: { id: ctx.session!.user.id },
+      select: { secretKey: true },
+    });
+    return { apiToken: user?.secretKey ?? null };
+  }),
+  generateApiToken: protectedProcedure.mutation(async ({ ctx }) => {
+    const token = generateApiToken();
+    await ctx.db.user.update({
+      where: { id: ctx.session!.user.id },
+      data: { secretKey: token },
+    });
+    return { apiToken: token };
+  }),
+  revokeApiToken: protectedProcedure.mutation(async ({ ctx }) => {
+    await ctx.db.user.update({
+      where: { id: ctx.session!.user.id },
+      data: { secretKey: null },
+    });
+    return { apiToken: null };
+  }),
 });
