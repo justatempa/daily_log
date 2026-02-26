@@ -66,6 +66,9 @@ jobs:
               touch "$APP_DIR/db.sqlite"
             fi
 
+            chown 1001:1001 "$APP_DIR/db.sqlite"
+            chmod 660 "$APP_DIR/db.sqlite"
+
             docker load -i "$IMAGE_ARCHIVE"
 
             if docker ps -a --format '{{.Names}}' | grep -q "^${APP_NAME}$"; then
