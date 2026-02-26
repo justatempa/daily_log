@@ -1,0 +1,83 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t daily-log:${{ github.sha }} \
+            -t daily-log:latest \
+            .
+
+      - name: Export image as archive
+        run: docker save daily-log:latest | gzip > daily-log-image.tar.gz
+
+      - name: Upload image archive to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: 104.225.159.103
+          username: root
+          port: 28022
+          key: ${{ secrets.SSH_KEY }}
+          source: daily-log-image.tar.gz
+          target: /tmp
+
+      - name: Load image and restart container on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 104.225.159.103
+          username: root
+          port: 28022
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -euo pipefail
+
+            APP_NAME="daily-log"
+            APP_DIR="/opt/daily-log"
+            IMAGE_ARCHIVE="/tmp/daily-log-image.tar.gz"
+            PORT=9999
+
+            mkdir -p "$APP_DIR"
+
+            if [ ! -f "$APP_DIR/.env" ]; then
+              cat > "$APP_DIR/.env" <<'EOF'
+NEXTAUTH_SECRET=change-me
+NEXTAUTH_URL=http://104.225.159.103:9999
+DATABASE_URL=file:/app/db.sqlite
+EOF
+            fi
+
+            if [ ! -f "$APP_DIR/db.sqlite" ]; then
+              touch "$APP_DIR/db.sqlite"
+            fi
+
+            docker load -i "$IMAGE_ARCHIVE"
+
+            if docker ps -a --format '{{.Names}}' | grep -q "^${APP_NAME}$"; then
+              docker rm -f "$APP_NAME"
+            fi
+
+            docker run -d \
+              --name "$APP_NAME" \
+              --restart unless-stopped \
+              -p "${PORT}:${PORT}" \
+              -v "$APP_DIR/db.sqlite:/app/db.sqlite" \
+              --env-file "$APP_DIR/.env" \
+              daily-log:latest
+
+            rm -f "$IMAGE_ARCHIVE"
