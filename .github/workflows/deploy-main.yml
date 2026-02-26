@@ -55,11 +55,11 @@ jobs:
             mkdir -p "$APP_DIR"
 
             if [ ! -f "$APP_DIR/.env" ]; then
-              cat > "$APP_DIR/.env" <<'EOF'
-NEXTAUTH_SECRET=change-me
-NEXTAUTH_URL=http://104.225.159.103:9999
-DATABASE_URL=file:/app/db.sqlite
-EOF
+              printf '%s\n' \
+                'NEXTAUTH_SECRET=change-me' \
+                'NEXTAUTH_URL=http://104.225.159.103:9999' \
+                'DATABASE_URL=file:/app/db.sqlite' \
+                > "$APP_DIR/.env"
             fi
 
             if [ ! -f "$APP_DIR/db.sqlite" ]; then
