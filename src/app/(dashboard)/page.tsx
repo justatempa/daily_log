@@ -127,6 +127,56 @@ export default function DashboardPage() {
 
   const memosApiUrl = process.env.NEXT_PUBLIC_MEMOS_API_URL ?? "";
 
+  const onCopyLogs = async () => {
+    const logs = logsQuery.data ?? [];
+    if (logs.length === 0) {
+      setMemosStatus("没有日志可复制");
+      return;
+    }
+
+    const sorted = [...logs].sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    const formatDateTime = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      const hours = String(date.getHours()).padStart(2, "0");
+      const minutes = String(date.getMinutes()).padStart(2, "0");
+      const seconds = String(date.getSeconds()).padStart(2, "0");
+      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    };
+
+    const lines: string[] = [];
+
+    sorted.forEach((log) => {
+      const timestamp = formatDateTime(log.date);
+      const content = log.content?.trim() || "Tagged entry";
+
+      if (log.isTodo) {
+        const checkbox = log.isTodoDone ? "[x]" : "[ ]";
+        lines.push(`${timestamp}: - ${checkbox} ${content}`);
+      } else {
+        lines.push(`${timestamp}: ${content}`);
+      }
+
+      if (log.replies && log.replies.length > 0) {
+        log.replies.forEach((reply) => {
+          const replyTimestamp = formatDateTime(reply.date);
+          lines.push(`${replyTimestamp}:   ${reply.content}`);
+        });
+      }
+    });
+
+    const text = lines.join("\n");
+
+    try {
+      await navigator.clipboard.writeText(text);
+      setMemosStatus("已复制到剪贴板");
+    } catch {
+      setMemosStatus("复制失败");
+    }
+  };
+
   const onSaveToMemos = async () => {
     if (!memosApiUrl) {
       setMemosStatus("Missing MEMOS API URL.");
@@ -239,6 +289,13 @@ export default function DashboardPage() {
               </button>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onCopyLogs}
+                className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-500 shadow-sm hover:text-indigo-600"
+              >
+                复制
+              </button>
               <button
                 type="button"
                 onClick={() => timelineRef.current?.scrollToTop()}
