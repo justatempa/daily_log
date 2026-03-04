@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Calendar from "@/components/calendar/Calendar";
 import Timeline, { type TimelineHandle } from "@/components/timeline/Timeline";
-import QuickInput from "@/components/quick-input/QuickInput";
+import QuickInput, { type QuickInputHandle } from "@/components/quick-input/QuickInput";
 import { api } from "@/utils/api";
 import {
   formatTagGroups,
@@ -20,7 +20,9 @@ export default function DashboardPage() {
   const [filter, setFilter] = useState<"all" | "todo" | "todo_open">("all");
   const [scrollToken, setScrollToken] = useState(0);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [quickTags, setQuickTags] = useState<TagGroup[]>([]);
   const timelineRef = useRef<TimelineHandle | null>(null);
+  const quickInputRef = useRef<QuickInputHandle | null>(null);
 
   const logsQuery = api.log.getByDate.useQuery({ date: selectedDate });
   const memosQuery = api.setting.getMemosToken.useQuery();
@@ -63,7 +65,7 @@ export default function DashboardPage() {
   );
 
   const onSubmit = () => {
-    if (!message.trim()) return;
+    if (!message.trim() && quickTags.length === 0) return;
     const now = new Date();
     const entryDate = new Date(selectedDate);
     entryDate.setHours(
@@ -76,37 +78,15 @@ export default function DashboardPage() {
       {
         content: message.trim(),
         date: entryDate,
-        tags: "",
+        tags: serializeTagGroups(quickTags),
         isTodo,
       },
       {
         onSuccess: async () => {
           setMessage("");
           setIsTodo(false);
-          await logsQuery.refetch();
-          setScrollToken((value) => value + 1);
-        },
-      },
-    );
-  };
-
-  const onQuickSend = (tags: TagGroup[]) => {
-    const now = new Date();
-    const entryDate = new Date(selectedDate);
-    entryDate.setHours(
-      now.getHours(),
-      now.getMinutes(),
-      now.getSeconds(),
-      now.getMilliseconds(),
-    );
-    addLog.mutate(
-      {
-        content: "",
-        tags: serializeTagGroups(tags),
-        date: entryDate,
-      },
-      {
-        onSuccess: async () => {
+          setQuickTags([]);
+          quickInputRef.current?.clearSelection();
           await logsQuery.refetch();
           setScrollToken((value) => value + 1);
         },
@@ -322,6 +302,7 @@ export default function DashboardPage() {
               onToggleTodo={(id) => toggleTodo.mutate({ id })}
               onDelete={(id) => deleteLog.mutate({ id })}
               onUpdate={(id, content) => updateLog.mutate({ id, content })}
+              onUpdateTags={(id, tags) => updateLog.mutate({ id, tags })}
               onAddReply={(id, content) =>
                 addLog.mutate(
                   {
@@ -347,43 +328,59 @@ export default function DashboardPage() {
             selectedDate={selectedDate}
             onSelectDate={(date) => setSelectedDate(date)}
           />
-          <QuickInput onSend={onQuickSend} />
+          <QuickInput ref={quickInputRef} onTagsChange={setQuickTags} />
         </div>
       </section>
 
       <section className="sticky bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 md:flex-row">
-          <button
-            type="button"
-            onClick={() => setIsTodo((prev) => !prev)}
-            className={`rounded-full border px-3 py-2 text-xs transition ${
-              isTodo
-                ? "border-indigo-500 bg-indigo-500 text-white shadow-sm"
-                : "border-slate-200 text-slate-500 hover:border-indigo-200 hover:text-indigo-600"
-            }`}
-          >
-            Todo
-          </button>
-          <textarea
-            value={message}
-            onChange={(event) => setMessage(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                onSubmit();
-              }
-            }}
-            placeholder="Add a note..."
-            className="min-h-[52px] w-full flex-1 resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
-          />
-          <button
-            type="button"
-            onClick={onSubmit}
-            disabled={!message.trim() || addLog.isLoading}
-            className="rounded-xl bg-indigo-500 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Send
-          </button>
+        <div className="mx-auto w-full max-w-6xl space-y-2">
+          {quickTags.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {quickTags.map((group) =>
+                group.labels.map((label) => (
+                  <span
+                    key={`${group.category}-${label}`}
+                    className="rounded-full border border-indigo-500 bg-indigo-50 px-3 py-1 text-xs text-indigo-600"
+                  >
+                    {group.category}: {label}
+                  </span>
+                ))
+              )}
+            </div>
+          )}
+          <div className="flex flex-col gap-2 md:flex-row">
+            <button
+              type="button"
+              onClick={() => setIsTodo((prev) => !prev)}
+              className={`rounded-full border px-3 py-2 text-xs transition ${
+                isTodo
+                  ? "border-indigo-500 bg-indigo-500 text-white shadow-sm"
+                  : "border-slate-200 text-slate-500 hover:border-indigo-200 hover:text-indigo-600"
+              }`}
+            >
+              Todo
+            </button>
+            <textarea
+              value={message}
+              onChange={(event) => setMessage(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  onSubmit();
+                }
+              }}
+              placeholder="Add a note..."
+              className="min-h-[52px] w-full flex-1 resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+            />
+            <button
+              type="button"
+              onClick={onSubmit}
+              disabled={(!message.trim() && quickTags.length === 0) || addLog.isLoading}
+              className="rounded-xl bg-indigo-500 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Send
+            </button>
+          </div>
         </div>
       </section>
       {showScrollTop ? (

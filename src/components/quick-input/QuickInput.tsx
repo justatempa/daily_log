@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useMemo, useState } from "react";
+import { forwardRef, useImperativeHandle, useState } from "react";
 import { api } from "@/utils/api";
 import { type TagGroup } from "@/utils/tags";
 
@@ -9,11 +9,13 @@ type SelectedTag = {
   label: string;
 };
 
-export default function QuickInput({
-  onSend,
-}: {
-  onSend: (tags: TagGroup[]) => void;
-}) {
+export type QuickInputHandle = {
+  clearSelection: () => void;
+};
+
+const QuickInput = forwardRef<QuickInputHandle, {
+  onTagsChange: (tags: TagGroup[]) => void;
+}>(({ onTagsChange }, ref) => {
   const { data, isLoading } = api.quickTag.getGrouped.useQuery();
   const utils = api.useUtils();
   const [selected, setSelected] = useState<SelectedTag[]>([]);
@@ -28,6 +30,13 @@ export default function QuickInput({
     },
   });
 
+  useImperativeHandle(ref, () => ({
+    clearSelection: () => {
+      setSelected([]);
+      onTagsChange([]);
+    },
+  }));
+
   const grouped = data ?? {};
   const entries = Object.entries(grouped);
 
@@ -36,28 +45,29 @@ export default function QuickInput({
       const exists = prev.find(
         (item) => item.category === category && item.label === label,
       );
-      if (exists) {
-        return prev.filter(
-          (item) => item.category !== category || item.label !== label,
-        );
+      const newSelected = exists
+        ? prev.filter(
+            (item) => item.category !== category || item.label !== label,
+          )
+        : [...prev, { category, label }];
+
+      // 通知父组件标签变化
+      const map = new Map<string, string[]>();
+      for (const item of newSelected) {
+        if (!map.has(item.category)) {
+          map.set(item.category, []);
+        }
+        map.get(item.category)?.push(item.label);
       }
-      return [...prev, { category, label }];
+      const tagGroups = Array.from(map.entries()).map(([category, labels]) => ({
+        category,
+        labels,
+      }));
+      onTagsChange(tagGroups);
+
+      return newSelected;
     });
   };
-
-  const tagGroups = useMemo(() => {
-    const map = new Map<string, string[]>();
-    for (const item of selected) {
-      if (!map.has(item.category)) {
-        map.set(item.category, []);
-      }
-      map.get(item.category)?.push(item.label);
-    }
-    return Array.from(map.entries()).map(([category, labels]) => ({
-      category,
-      labels,
-    }));
-  }, [selected]);
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -65,19 +75,6 @@ export default function QuickInput({
         <p className="text-xs uppercase tracking-[0.3em] text-indigo-500">
           Quick Input
         </p>
-        <button
-          type="button"
-          onClick={() => {
-            if (tagGroups.length > 0) {
-              onSend(tagGroups);
-              setSelected([]);
-            }
-          }}
-          disabled={tagGroups.length === 0}
-          className="rounded-full bg-indigo-500 px-3 py-1 text-xs text-white shadow-sm transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
-        >
-          Send
-        </button>
       </div>
 
       <div className="mt-4 space-y-3">
@@ -150,4 +147,8 @@ export default function QuickInput({
       </div>
     </div>
   );
-}
+});
+
+QuickInput.displayName = "QuickInput";
+
+export default QuickInput;

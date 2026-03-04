@@ -8,7 +8,8 @@ import {
   useRef,
   useState,
 } from "react";
-import { formatTagGroups, parseTagGroups } from "@/utils/tags";
+import { formatTagGroups, parseTagGroups, serializeTagGroups, type TagGroup } from "@/utils/tags";
+import { api } from "@/utils/api";
 
 type Reply = {
   id: string;
@@ -43,6 +44,7 @@ const Timeline = forwardRef<TimelineHandle, {
   onToggleTodo: (id: string) => void;
   onDelete: (id: string) => void;
   onUpdate: (id: string, content: string) => void;
+  onUpdateTags: (id: string, tags: string) => void;
   onAddReply: (id: string, content: string) => void;
   scrollToBottomKey: number;
 }>(({
@@ -50,6 +52,7 @@ const Timeline = forwardRef<TimelineHandle, {
   onToggleTodo,
   onDelete,
   onUpdate,
+  onUpdateTags,
   onAddReply,
   scrollToBottomKey,
 }, ref) => {
@@ -60,6 +63,8 @@ const Timeline = forwardRef<TimelineHandle, {
   );
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
+  const [editingTagsId, setEditingTagsId] = useState<string | null>(null);
+  const [selectedTagsForEdit, setSelectedTagsForEdit] = useState<Array<{ category: string; label: string }>>([]);
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [expandedReplies, setExpandedReplies] = useState<Set<string>>(
     () => new Set(),
@@ -67,6 +72,8 @@ const Timeline = forwardRef<TimelineHandle, {
   const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
   const replyInputRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
   const containerRef = useRef<HTMLDivElement | null>(null);
+
+  const { data: availableTags } = api.quickTag.getGrouped.useQuery();
 
   useImperativeHandle(
     ref,
@@ -118,6 +125,23 @@ const Timeline = forwardRef<TimelineHandle, {
               className="relative rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
             >
           <div className="absolute right-4 top-4 flex items-center gap-3 text-xs text-slate-400">
+            <button
+              type="button"
+              onClick={() => {
+                setEditingTagsId(log.id);
+                const parsed = parseTagGroups(log.tags);
+                const selected: Array<{ category: string; label: string }> = [];
+                parsed.forEach((group) => {
+                  group.labels.forEach((label) => {
+                    selected.push({ category: group.category, label });
+                  });
+                });
+                setSelectedTagsForEdit(selected);
+              }}
+              className="hover:text-indigo-500"
+            >
+              标签
+            </button>
             <button
               type="button"
               onClick={() =>
@@ -306,6 +330,102 @@ const Timeline = forwardRef<TimelineHandle, {
                 >
                   发送
                 </button>
+              </div>
+            </div>
+          ) : null}
+
+          {editingTagsId === log.id ? (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+              <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
+                <h3 className="text-sm font-semibold text-slate-900">编辑标签</h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  点击标签进行选择或取消选择
+                </p>
+                <div className="mt-4 max-h-[400px] space-y-3 overflow-y-auto">
+                  {availableTags && Object.entries(availableTags).length > 0 ? (
+                    Object.entries(availableTags).map(([category, labels]) => (
+                      <div key={category}>
+                        <p className="text-xs font-semibold text-slate-500">
+                          {category}
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {labels.map((label) => {
+                            const isSelected = selectedTagsForEdit.some(
+                              (item) =>
+                                item.category === category && item.label === label,
+                            );
+                            return (
+                              <button
+                                key={`${category}-${label}`}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedTagsForEdit((prev) => {
+                                    const exists = prev.find(
+                                      (item) =>
+                                        item.category === category &&
+                                        item.label === label,
+                                    );
+                                    if (exists) {
+                                      return prev.filter(
+                                        (item) =>
+                                          item.category !== category ||
+                                          item.label !== label,
+                                      );
+                                    }
+                                    return [...prev, { category, label }];
+                                  });
+                                }}
+                                className={`rounded-full border px-3 py-1 text-xs transition ${
+                                  isSelected
+                                    ? "border-indigo-500 bg-indigo-50 text-indigo-600"
+                                    : "border-slate-200 text-slate-500 hover:border-indigo-200"
+                                }`}
+                              >
+                                {label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-slate-400">
+                      没有可用的标签，请先在 Quick Input 中添加
+                    </p>
+                  )}
+                </div>
+                <div className="mt-4 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const map = new Map<string, string[]>();
+                      for (const item of selectedTagsForEdit) {
+                        if (!map.has(item.category)) {
+                          map.set(item.category, []);
+                        }
+                        map.get(item.category)?.push(item.label);
+                      }
+                      const tagGroups: TagGroup[] = Array.from(map.entries()).map(
+                        ([category, labels]) => ({
+                          category,
+                          labels,
+                        }),
+                      );
+                      onUpdateTags(log.id, serializeTagGroups(tagGroups));
+                      setEditingTagsId(null);
+                    }}
+                    className="rounded-full bg-indigo-500 px-4 py-2 text-xs text-white hover:bg-indigo-400"
+                  >
+                    保存
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingTagsId(null)}
+                    className="rounded-full border border-slate-200 px-4 py-2 text-xs text-slate-600 hover:border-indigo-200"
+                  >
+                    取消
+                  </button>
+                </div>
               </div>
             </div>
           ) : null}
