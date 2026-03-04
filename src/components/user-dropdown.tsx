@@ -11,6 +11,9 @@ export default function UserDropdown() {
   const [memosToken, setMemosToken] = useState("");
   const [apiToken, setApiToken] = useState("");
   const [apiTokenStatus, setApiTokenStatus] = useState<string | null>(null);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [passwordStatus, setPasswordStatus] = useState<string | null>(null);
 
   const utils = api.useUtils();
   const memosQuery = api.setting.getMemosToken.useQuery();
@@ -32,6 +35,16 @@ export default function UserDropdown() {
       setApiToken("");
       setApiTokenStatus("Token cleared.");
       await utils.user.getApiToken.invalidate();
+    },
+  });
+  const changePassword = api.setting.changePassword.useMutation({
+    onSuccess: () => {
+      setPasswordStatus("密码修改成功");
+      setCurrentPassword("");
+      setNewPassword("");
+    },
+    onError: (error) => {
+      setPasswordStatus(error.message || "密码修改失败");
     },
   });
 
@@ -216,6 +229,52 @@ export default function UserDropdown() {
               {apiTokenStatus ? (
                 <p className="mt-1 text-[11px] text-slate-400">
                   {apiTokenStatus}
+                </p>
+              ) : null}
+            </div>
+
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                修改密码
+              </p>
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(event) => setCurrentPassword(event.target.value)}
+                placeholder="当前密码"
+                className="mt-2 w-full rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600"
+              />
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                placeholder="新密码 (至少6位)"
+                className="mt-2 w-full rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (!currentPassword || !newPassword) {
+                    setPasswordStatus("请填写完整信息");
+                    return;
+                  }
+                  if (newPassword.length < 6) {
+                    setPasswordStatus("新密码至少6位");
+                    return;
+                  }
+                  changePassword.mutate({
+                    currentPassword,
+                    newPassword,
+                  });
+                }}
+                disabled={changePassword.isLoading}
+                className="mt-2 w-full rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:border-indigo-200 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                修改密码
+              </button>
+              {passwordStatus ? (
+                <p className="mt-2 text-[11px] text-slate-400">
+                  {passwordStatus}
                 </p>
               ) : null}
             </div>
