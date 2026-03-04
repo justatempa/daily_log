@@ -265,7 +265,7 @@ const Timeline = forwardRef<TimelineHandle, {
                   <>
                     {log.content ? (
                       <p
-                        className={`text-sm font-medium text-slate-800 ${
+                        className={`break-words whitespace-pre-wrap text-sm font-medium text-slate-800 ${
                           log.isTodoDone ? "line-through opacity-60" : ""
                         }`}
                       >
