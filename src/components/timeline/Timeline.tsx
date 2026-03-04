@@ -123,7 +123,7 @@ const Timeline = forwardRef<TimelineHandle, {
           {sorted.map((log) => (
             <div
               key={log.id}
-              className="relative rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+              className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
             >
           <div className="absolute right-4 top-4">
             <button
@@ -220,7 +220,7 @@ const Timeline = forwardRef<TimelineHandle, {
             )}
           </div>
           <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-3 pr-12">
+            <div className="flex min-w-0 flex-1 items-start gap-3 pr-12">
               {log.isTodo ? (
                 <input
                   type="checkbox"
@@ -232,7 +232,7 @@ const Timeline = forwardRef<TimelineHandle, {
               ) : (
                 <div className="mt-1 h-4 w-4" />
               )}
-              <div className="flex-1">
+              <div className="min-w-0 flex-1">
                 {editingId === log.id ? (
                   <div className="space-y-2">
                     <input

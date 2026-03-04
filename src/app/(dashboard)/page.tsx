@@ -210,7 +210,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <section className="grid gap-6 lg:grid-cols-[1fr_360px]">
+      <section className="grid gap-6 lg:grid-cols-[minmax(0,800px)_360px] xl:grid-cols-[minmax(0,900px)_360px]">
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
