@@ -65,6 +65,7 @@ const Timeline = forwardRef<TimelineHandle, {
   const [editingValue, setEditingValue] = useState("");
   const [editingTagsId, setEditingTagsId] = useState<string | null>(null);
   const [selectedTagsForEdit, setSelectedTagsForEdit] = useState<Array<{ category: string; label: string }>>([]);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [expandedReplies, setExpandedReplies] = useState<Set<string>>(
     () => new Set(),
@@ -124,73 +125,102 @@ const Timeline = forwardRef<TimelineHandle, {
               key={log.id}
               className="relative rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
             >
-          <div className="absolute right-4 top-4 flex items-center gap-3 text-xs text-slate-400">
+          <div className="absolute right-4 top-4">
             <button
               type="button"
-              onClick={() => {
-                setEditingTagsId(log.id);
-                const parsed = parseTagGroups(log.tags);
-                const selected: Array<{ category: string; label: string }> = [];
-                parsed.forEach((group) => {
-                  group.labels.forEach((label) => {
-                    selected.push({ category: group.category, label });
-                  });
-                });
-                setSelectedTagsForEdit(selected);
-              }}
-              className="hover:text-indigo-500"
+              onClick={() => setOpenMenuId(openMenuId === log.id ? null : log.id)}
+              className="text-slate-400 hover:text-indigo-500"
             >
-              标签
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
+                />
+              </svg>
             </button>
-            <button
-              type="button"
-              onClick={() =>
-                setExpandedReplies((prev) => {
-                  const next = new Set(prev);
-                  if (next.has(log.id)) {
-                    next.delete(log.id);
-                    setActiveReplyId((current) =>
-                      current === log.id ? null : current,
-                    );
-                  } else {
-                    next.add(log.id);
-                    setActiveReplyId(log.id);
-                  }
-                  return next;
-                })
-              }
-              className="hover:text-indigo-500"
-            >
-              {log.replies?.length ? (
-                expandedReplies.has(log.id) ? (
-                  <>收起评论 {log.replies.length}</>
-                ) : (
-                  <>展开评论 {log.replies.length}</>
-                )
-              ) : (
-                "评论"
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setEditingId(log.id);
-                setEditingValue(log.content);
-              }}
-              className="hover:text-indigo-500"
-            >
-              编辑
-            </button>
-            <button
-              type="button"
-              onClick={() => onDelete(log.id)}
-              className="text-rose-400 hover:text-rose-500"
-            >
-              删除
-            </button>
+            {openMenuId === log.id && (
+              <div className="absolute right-0 top-8 z-10 w-32 rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingTagsId(log.id);
+                    const parsed = parseTagGroups(log.tags);
+                    const selected: Array<{ category: string; label: string }> = [];
+                    parsed.forEach((group) => {
+                      group.labels.forEach((label) => {
+                        selected.push({ category: group.category, label });
+                      });
+                    });
+                    setSelectedTagsForEdit(selected);
+                    setOpenMenuId(null);
+                  }}
+                  className="w-full px-4 py-2 text-left text-xs text-slate-600 hover:bg-slate-50"
+                >
+                  标签
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExpandedReplies((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(log.id)) {
+                        next.delete(log.id);
+                        setActiveReplyId((current) =>
+                          current === log.id ? null : current,
+                        );
+                      } else {
+                        next.add(log.id);
+                        setActiveReplyId(log.id);
+                      }
+                      return next;
+                    });
+                    setOpenMenuId(null);
+                  }}
+                  className="w-full px-4 py-2 text-left text-xs text-slate-600 hover:bg-slate-50"
+                >
+                  {log.replies?.length ? (
+                    expandedReplies.has(log.id) ? (
+                      <>收起评论 {log.replies.length}</>
+                    ) : (
+                      <>展开评论 {log.replies.length}</>
+                    )
+                  ) : (
+                    "评论"
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingId(log.id);
+                    setEditingValue(log.content);
+                    setOpenMenuId(null);
+                  }}
+                  className="w-full px-4 py-2 text-left text-xs text-slate-600 hover:bg-slate-50"
+                >
+                  编辑
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onDelete(log.id);
+                    setOpenMenuId(null);
+                  }}
+                  className="w-full px-4 py-2 text-left text-xs text-rose-400 hover:bg-slate-50"
+                >
+                  删除
+                </button>
+              </div>
+            )}
           </div>
           <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-3 pr-24">
+            <div className="flex items-start gap-3 pr-12">
               {log.isTodo ? (
                 <input
                   type="checkbox"
