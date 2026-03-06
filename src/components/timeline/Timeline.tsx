@@ -123,7 +123,9 @@ const Timeline = forwardRef<TimelineHandle, {
           {sorted.map((log) => (
             <div
               key={log.id}
-              className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+              className={`relative rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ${
+                openMenuId === log.id ? "z-20" : ""
+              }`}
             >
           <div className="absolute right-4 top-4">
             <button
