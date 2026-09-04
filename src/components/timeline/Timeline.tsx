@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
   forwardRef,
@@ -17,7 +17,7 @@ type Reply = {
   date: Date;
 };
 
-type LogItem = {
+export type LogItem = {
   id: string;
   content: string;
   date: Date;
@@ -25,6 +25,8 @@ type LogItem = {
   isTodo: boolean;
   isTodoDone: boolean;
   replies?: Reply[];
+  /** 本地乐观条目的同步状态：sending=发送中，failed=发送失败 */
+  syncStatus?: "sending" | "failed";
 };
 
 export type TimelineHandle = {
@@ -46,6 +48,7 @@ const Timeline = forwardRef<TimelineHandle, {
   onUpdate: (id: string, content: string) => void;
   onUpdateTags: (id: string, tags: string) => void;
   onAddReply: (id: string, content: string) => void;
+  onResend: (id: string) => void;
   scrollToBottomKey: number;
 }>(({
   logs,
@@ -54,6 +57,7 @@ const Timeline = forwardRef<TimelineHandle, {
   onUpdate,
   onUpdateTags,
   onAddReply,
+  onResend,
   scrollToBottomKey,
 }, ref) => {
   const hasLogs = logs.length > 0;
@@ -127,6 +131,7 @@ const Timeline = forwardRef<TimelineHandle, {
                 openMenuId === log.id ? "z-20" : ""
               }`}
             >
+          {!log.syncStatus && (
           <div className="absolute right-4 top-4">
             <button
               type="button"
@@ -221,6 +226,7 @@ const Timeline = forwardRef<TimelineHandle, {
               </div>
             )}
           </div>
+          )}
           <div className="flex items-start justify-between gap-4">
             <div className="flex min-w-0 flex-1 items-start gap-3 pr-12">
               {log.isTodo ? (
@@ -228,7 +234,8 @@ const Timeline = forwardRef<TimelineHandle, {
                   type="checkbox"
                   checked={log.isTodoDone}
                   onChange={() => onToggleTodo(log.id)}
-                  className="mt-1 h-4 w-4 rounded border border-slate-300 text-indigo-600"
+                  disabled={log.syncStatus !== undefined}
+                  className="mt-1 h-4 w-4 rounded border border-slate-300 text-indigo-600 disabled:cursor-not-allowed disabled:opacity-60"
                   aria-label="完成 Todo"
                 />
               ) : (
@@ -293,6 +300,31 @@ const Timeline = forwardRef<TimelineHandle, {
                           })()
                         : null}
                     </div>
+                    {log.syncStatus ? (
+                      <div className="mt-2 flex items-center gap-2">
+                        {log.syncStatus === "sending" ? (
+                          <>
+                            <span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-500" />
+                            <span className="text-xs text-slate-400">
+                              发送中...
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-xs font-medium text-rose-500">
+                              发送失败
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => onResend(log.id)}
+                              className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[11px] font-medium text-rose-500 transition hover:bg-rose-100"
+                            >
+                              重发
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    ) : null}
                   </>
                 )}
               </div>

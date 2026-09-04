@@ -1,8 +1,11 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Calendar from "@/components/calendar/Calendar";
-import Timeline, { type TimelineHandle } from "@/components/timeline/Timeline";
+import Timeline, {
+  type LogItem,
+  type TimelineHandle,
+} from "@/components/timeline/Timeline";
 import QuickInput, { type QuickInputHandle } from "@/components/quick-input/QuickInput";
 import { api } from "@/utils/api";
 import {
@@ -11,6 +14,27 @@ import {
   serializeTagGroups,
   type TagGroup,
 } from "@/utils/tags";
+
+type PendingLog = {
+  id: string;
+  content: string;
+  date: Date;
+  tags: string;
+  isTodo: boolean;
+  status: "sending" | "failed";
+};
+
+function sameDay(a: Date, b: Date) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function newTempId() {
+  return `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 export default function DashboardPage() {
   const [selectedDate, setSelectedDate] = useState(() => new Date());
@@ -21,11 +45,13 @@ export default function DashboardPage() {
   const [scrollToken, setScrollToken] = useState(0);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [quickTags, setQuickTags] = useState<TagGroup[]>([]);
+  const [pendingLogs, setPendingLogs] = useState<PendingLog[]>([]);
   const timelineRef = useRef<TimelineHandle | null>(null);
   const quickInputRef = useRef<QuickInputHandle | null>(null);
 
   const logsQuery = api.log.getByDate.useQuery({ date: selectedDate });
   const memosQuery = api.setting.getMemosToken.useQuery();
+  const utils = api.useUtils();
   const addLog = api.log.add.useMutation();
   const toggleTodo = api.log.toggleTodo.useMutation({
     onSuccess: async () => {
@@ -64,6 +90,46 @@ export default function DashboardPage() {
     [selectedDate],
   );
 
+  const sendLog = (pending: PendingLog) => {
+    addLog.mutate(
+      {
+        content: pending.content,
+        date: pending.date,
+        tags: pending.tags,
+        isTodo: pending.isTodo,
+      },
+      {
+        onSuccess: (created) => {
+          // 用真实数据替换临时条目，避免等待 refetch 造成闪烁
+          setPendingLogs((prev) =>
+            prev.filter((item) => item.id !== pending.id),
+          );
+          utils.log.getByDate.setData({ date: selectedDate }, (old) => {
+            const list = old ?? [];
+            return [
+              ...list,
+              {
+                ...created,
+                date: new Date(created.date),
+                replies: [],
+              },
+            ].sort((a, b) => a.date.getTime() - b.date.getTime());
+          });
+          setScrollToken((value) => value + 1);
+        },
+        onError: () => {
+          setPendingLogs((prev) =>
+            prev.map((item) =>
+              item.id === pending.id
+                ? { ...item, status: "failed" as const }
+                : item,
+            ),
+          );
+        },
+      },
+    );
+  };
+
   const onSubmit = () => {
     if (!message.trim() && quickTags.length === 0) return;
     const now = new Date();
@@ -74,28 +140,50 @@ export default function DashboardPage() {
       now.getSeconds(),
       now.getMilliseconds(),
     );
-    addLog.mutate(
-      {
-        content: message.trim(),
-        date: entryDate,
-        tags: serializeTagGroups(quickTags),
-        isTodo,
-      },
-      {
-        onSuccess: async () => {
-          setMessage("");
-          setIsTodo(false);
-          setQuickTags([]);
-          quickInputRef.current?.clearSelection();
-          await logsQuery.refetch();
-          setScrollToken((value) => value + 1);
-        },
-      },
+    const pending: PendingLog = {
+      id: newTempId(),
+      content: message.trim(),
+      date: entryDate,
+      tags: serializeTagGroups(quickTags),
+      isTodo,
+      status: "sending",
+    };
+    // 立即写入日志区域
+    setPendingLogs((prev) => [...prev, pending]);
+    // 立即清空输入
+    setMessage("");
+    setIsTodo(false);
+    setQuickTags([]);
+    quickInputRef.current?.clearSelection();
+    setScrollToken((value) => value + 1);
+    // 异步发送
+    sendLog(pending);
+  };
+
+  const onResend = (id: string) => {
+    const target = pendingLogs.find((item) => item.id === id);
+    if (!target) return;
+    setPendingLogs((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, status: "sending" as const } : item,
+      ),
     );
+    sendLog({ ...target, status: "sending" });
   };
 
   const filteredLogs = useMemo(() => {
-    const logs = logsQuery.data ?? [];
+    const pendings: LogItem[] = pendingLogs
+      .filter((item) => sameDay(item.date, selectedDate))
+      .map((item) => ({
+        id: item.id,
+        content: item.content,
+        date: item.date,
+        tags: item.tags,
+        isTodo: item.isTodo,
+        isTodoDone: false,
+        syncStatus: item.status,
+      }));
+    const logs = [...(logsQuery.data ?? []), ...pendings];
     if (filter === "todo") {
       return logs.filter((log) => log.isTodo);
     }
@@ -103,7 +191,7 @@ export default function DashboardPage() {
       return logs.filter((log) => log.isTodo && !log.isTodoDone);
     }
     return logs;
-  }, [filter, logsQuery.data]);
+  }, [filter, logsQuery.data, pendingLogs, selectedDate]);
 
   const memosApiUrl = process.env.NEXT_PUBLIC_MEMOS_API_URL ?? "";
 
@@ -318,6 +406,7 @@ export default function DashboardPage() {
                   },
                 )
               }
+              onResend={onResend}
               scrollToBottomKey={scrollToken}
             />
           </div>
@@ -375,7 +464,7 @@ export default function DashboardPage() {
             <button
               type="button"
               onClick={onSubmit}
-              disabled={(!message.trim() && quickTags.length === 0) || addLog.isLoading}
+              disabled={!message.trim() && quickTags.length === 0}
               className="rounded-xl bg-indigo-500 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Send
