@@ -43,6 +43,7 @@ function formatTime(date: Date) {
 
 const Timeline = forwardRef<TimelineHandle, {
   logs: LogItem[];
+  privacyMode?: boolean;
   onToggleTodo: (id: string) => void;
   onDelete: (id: string) => void;
   onUpdate: (id: string, content: string) => void;
@@ -52,6 +53,7 @@ const Timeline = forwardRef<TimelineHandle, {
   scrollToBottomKey: number;
 }>(({
   logs,
+  privacyMode = false,
   onToggleTodo,
   onDelete,
   onUpdate,
@@ -276,12 +278,20 @@ const Timeline = forwardRef<TimelineHandle, {
                       <p
                         className={`break-words whitespace-pre-wrap text-sm font-medium text-slate-800 ${
                           log.isTodoDone ? "line-through opacity-60" : ""
+                        } ${
+                          privacyMode
+                            ? "select-none blur-md"
+                            : ""
                         }`}
                       >
                         {log.content}
                       </p>
                     ) : (
-                      <p className="text-sm font-medium text-slate-500">
+                      <p
+                        className={`text-sm font-medium text-slate-500 ${
+                          privacyMode ? "select-none blur-md" : ""
+                        }`}
+                      >
                         Tagged entry
                       </p>
                     )}
@@ -293,7 +303,11 @@ const Timeline = forwardRef<TimelineHandle, {
                               parseTagGroups(log.tags),
                             );
                             return formatted ? (
-                              <span className="rounded-full bg-indigo-50 px-2 py-1 text-indigo-500">
+                              <span
+                                className={`rounded-full bg-indigo-50 px-2 py-1 text-indigo-500 ${
+                                  privacyMode ? "select-none blur-md" : ""
+                                }`}
+                              >
                                 {formatted}
                               </span>
                             ) : null;
@@ -348,7 +362,13 @@ const Timeline = forwardRef<TimelineHandle, {
                       {formatTime(reply.date)}
                     </div>
                     <div className="text-xs text-slate-600">
-                      {reply.content}
+                      <span
+                        className={
+                          privacyMode ? "select-none blur-md" : undefined
+                        }
+                      >
+                        {reply.content}
+                      </span>
                     </div>
                   </div>
                 ) : null,
