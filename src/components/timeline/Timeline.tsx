@@ -41,11 +41,21 @@ function formatTime(date: Date) {
   });
 }
 
+function formatDateTime(date: Date) {
+  return date.toLocaleDateString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }) + " " + formatTime(date);
+}
+
 const Timeline = forwardRef<TimelineHandle, {
   logs: LogItem[];
   privacyMode?: boolean;
   /** true 时按时间倒序（最新在前），用于搜索结果；默认 false 升序 */
   reverseSort?: boolean;
+  /** true 时在每条日志上显示完整日期（跨天搜索用）；默认 false 只显示时分 */
+  showDate?: boolean;
   onToggleTodo: (id: string) => void;
   onDelete: (id: string) => void;
   onUpdate: (id: string, content: string) => void;
@@ -57,6 +67,7 @@ const Timeline = forwardRef<TimelineHandle, {
   logs,
   privacyMode = false,
   reverseSort = false,
+  showDate = false,
   onToggleTodo,
   onDelete,
   onUpdate,
@@ -304,7 +315,9 @@ const Timeline = forwardRef<TimelineHandle, {
                       </p>
                     )}
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
-                      <span>{formatTime(log.date)}</span>
+                      <span className={showDate ? "font-medium text-slate-500" : ""}>
+                        {showDate ? formatDateTime(log.date) : formatTime(log.date)}
+                      </span>
                       {log.tags
                         ? (() => {
                             const formatted = formatTagGroups(
@@ -367,7 +380,7 @@ const Timeline = forwardRef<TimelineHandle, {
                     className="rounded-lg border border-slate-100 bg-white px-3 py-2"
                   >
                     <div className="text-[10px] uppercase text-slate-300">
-                      {formatTime(reply.date)}
+                      {showDate ? formatDateTime(reply.date) : formatTime(reply.date)}
                     </div>
                     <div className="text-xs text-slate-600">
                       <span

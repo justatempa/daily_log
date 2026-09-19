@@ -1,0 +1,8 @@
+[21:27:45] started, config: url=https://log.911250.xyz/api/open/log, token=set
+[21:29:45] started, config: url=https://log.911250.xyz/api/open/log, token=set
+[21:30:07] enter pressed
+[21:30:07] send called, text='试下桌面组件 太丑了'
+[21:30:07] POST https://log.911250.xyz/api/open/log, body=b'{"content": "\\u8bd5\\u4e0b\\u684c\\u9762\\u7ec4\\u4ef6 \\u592a\\u4e11\\u4e86", "date": "2026-09-19T21:30:07.801936"}'
+[21:30:08] SSL cert verify failed, retrying without verification
+[21:30:08] retrying with SSL verification disabled
+[21:30:09] response: 201 {"id":"cmu8fcysv000fib2eqcoj5x7a"}

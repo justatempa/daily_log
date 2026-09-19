@@ -296,6 +296,7 @@ export default function SearchPage() {
           ref={timelineRef}
           logs={logs}
           reverseSort
+          showDate
           onToggleTodo={(id) => toggleTodo.mutate({ id })}
           onDelete={(id) => deleteLog.mutate({ id })}
           onUpdate={(id, content) => updateLog.mutate({ id, content })}

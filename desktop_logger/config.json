@@ -1,0 +1,4 @@
+{
+  "api_url": "https://localhost:3000/api/open/log",
+  "token": "replace me"
+}
