@@ -44,6 +44,8 @@ function formatTime(date: Date) {
 const Timeline = forwardRef<TimelineHandle, {
   logs: LogItem[];
   privacyMode?: boolean;
+  /** true 时按时间倒序（最新在前），用于搜索结果；默认 false 升序 */
+  reverseSort?: boolean;
   onToggleTodo: (id: string) => void;
   onDelete: (id: string) => void;
   onUpdate: (id: string, content: string) => void;
@@ -54,6 +56,7 @@ const Timeline = forwardRef<TimelineHandle, {
 }>(({
   logs,
   privacyMode = false,
+  reverseSort = false,
   onToggleTodo,
   onDelete,
   onUpdate,
@@ -64,8 +67,13 @@ const Timeline = forwardRef<TimelineHandle, {
 }, ref) => {
   const hasLogs = logs.length > 0;
   const sorted = useMemo(
-    () => [...logs].sort((a, b) => a.date.getTime() - b.date.getTime()),
-    [logs],
+    () =>
+      [...logs].sort((a, b) =>
+        reverseSort
+          ? b.date.getTime() - a.date.getTime()
+          : a.date.getTime() - b.date.getTime(),
+      ),
+    [logs, reverseSort],
   );
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");

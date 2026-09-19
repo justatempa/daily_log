@@ -1,6 +1,7 @@
 ﻿import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, router } from "@/server/api/trpc";
+import { parseTagGroups } from "@/utils/tags";
 
 const dayRange = (date: Date) => {
   const start = new Date(date);
@@ -17,6 +18,69 @@ export const logRouter = router({
       orderBy: { createdAt: "asc" },
     });
   }),
+  search: protectedProcedure
+    .input(
+      z.object({
+        keyword: z.string().optional(),
+        selectedTags: z
+          .array(z.object({ category: z.string(), label: z.string() }))
+          .optional(),
+        startDate: z.date().optional(),
+        endDate: z.date().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const where: {
+        userId: string;
+        parentId: null;
+        content?: { contains: string };
+        date?: { gte?: Date; lte?: Date };
+      } = {
+        userId: ctx.session!.user.id,
+        parentId: null,
+      };
+
+      if (input.keyword && input.keyword.trim()) {
+        where.content = { contains: input.keyword.trim() };
+      }
+
+      if (input.startDate || input.endDate) {
+        where.date = {};
+        if (input.startDate) {
+          const start = new Date(input.startDate);
+          start.setHours(0, 0, 0, 0);
+          where.date.gte = start;
+        }
+        if (input.endDate) {
+          const end = new Date(input.endDate);
+          end.setHours(23, 59, 59, 999);
+          where.date.lte = end;
+        }
+      }
+
+      const logs = await ctx.db.log.findMany({
+        where,
+        orderBy: { date: "desc" },
+        include: {
+          replies: { orderBy: { createdAt: "asc" } },
+        },
+      });
+
+      // tags 列存的是 JSON 字符串，SQL 层无法直接过滤，这里在内存中做 OR 匹配
+      const selected = input.selectedTags ?? [];
+      if (selected.length > 0) {
+        return logs.filter((log) => {
+          const groups = parseTagGroups(log.tags);
+          return selected.some((sel) => {
+            const group = groups.find((g) => g.category === sel.category);
+            if (!group) return false;
+            return group.labels.includes(sel.label);
+          });
+        });
+      }
+
+      return logs;
+    }),
   getByDate: protectedProcedure
     .input(z.object({ date: z.date() }))
     .query(async ({ ctx, input }) => {
