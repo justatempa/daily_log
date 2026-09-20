@@ -108,6 +108,29 @@ export const logRouter = router({
         orderBy: { createdAt: "asc" },
       });
     }),
+  getHashtags: protectedProcedure.query(async ({ ctx }) => {
+    // 只取顶级日志的 content，提取 hashtag 并统计
+    const logs = await ctx.db.log.findMany({
+      where: { userId: ctx.session!.user.id, parentId: null },
+      select: { content: true },
+    });
+
+    const countMap = new Map<string, number>();
+    const re = /(?:^|\s)#([\u4e00-\u9fa5\w]+)/g;
+    for (const log of logs) {
+      if (!log.content) continue;
+      re.lastIndex = 0;
+      let match: RegExpExecArray | null;
+      while ((match = re.exec(log.content)) !== null) {
+        const tag = match[1];
+        countMap.set(tag, (countMap.get(tag) ?? 0) + 1);
+      }
+    }
+
+    return Array.from(countMap.entries())
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count);
+  }),
   add: protectedProcedure
     .input(
       z

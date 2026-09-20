@@ -73,6 +73,7 @@ export default function SearchPage() {
   }, [keyword]);
 
   const { data: availableTags } = api.quickTag.getGrouped.useQuery();
+  const { data: hashtags } = api.log.getHashtags.useQuery();
 
   const searchParams = useMemo(
     () => ({
@@ -234,6 +235,36 @@ export default function SearchPage() {
             />
           </div>
         </div>
+
+        {/* 行内 hashtag 快捷筛选 */}
+        {hashtags && hashtags.length > 0 ? (
+          <div className="mt-4 border-t border-slate-100 pt-4">
+            <p className="mb-2 text-xs font-semibold text-slate-500">
+              行内标签
+              <span className="ml-2 text-slate-400">点击筛选</span>
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {hashtags.map((h) => {
+                const active = debouncedKeyword === h.tag || debouncedKeyword === `#${h.tag}`;
+                return (
+                  <button
+                    key={h.tag}
+                    type="button"
+                    onClick={() => setKeyword(active ? "" : `#${h.tag}`)}
+                    className={`rounded-full border px-3 py-1 text-xs transition ${
+                      active
+                        ? "border-indigo-500 bg-indigo-50 text-indigo-600"
+                        : "border-slate-200 text-slate-500 hover:border-indigo-200 hover:text-indigo-600"
+                    }`}
+                  >
+                    #{h.tag}
+                    <span className="ml-1 text-slate-400">{h.count}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
 
         {/* 标签筛选 */}
         <div className="mt-4 border-t border-slate-100 pt-4">
