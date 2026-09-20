@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { formatTagGroups, parseTagGroups, serializeTagGroups, type TagGroup } from "@/utils/tags";
+import { parseRichText } from "@/utils/hashtag";
 import { api } from "@/utils/api";
 
 type Reply = {
@@ -303,7 +304,15 @@ const Timeline = forwardRef<TimelineHandle, {
                             : ""
                         }`}
                       >
-                        {log.content}
+                        {parseRichText(log.content).map((seg, i) =>
+                          seg.isHashtag ? (
+                            <span key={i} className="text-indigo-500 font-semibold">
+                              {seg.text}
+                            </span>
+                          ) : (
+                            <span key={i}>{seg.text}</span>
+                          )
+                        )}
                       </p>
                     ) : (
                       <p
@@ -388,7 +397,15 @@ const Timeline = forwardRef<TimelineHandle, {
                           privacyMode ? "select-none blur-md" : undefined
                         }
                       >
-                        {reply.content}
+                        {parseRichText(reply.content).map((seg, i) =>
+                          seg.isHashtag ? (
+                            <span key={i} className="text-indigo-500 font-medium">
+                              {seg.text}
+                            </span>
+                          ) : (
+                            <span key={i}>{seg.text}</span>
+                          )
+                        )}
                       </span>
                     </div>
                   </div>
