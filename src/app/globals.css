@@ -1,9 +1,9 @@
-﻿@tailwind base;
+@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
 }
 
 html,
@@ -11,11 +11,33 @@ body {
   height: 100%;
 }
 
+/* 中文回退字体栈：拉丁字符用 Space Grotesk（next/font 变量），中文用系统字体 */
 body {
+  font-family: var(--font-space-grotesk), "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", "Noto Sans SC", "Segoe UI", sans-serif;
   background: #f5f7fa;
   color: #1e293b;
 }
 
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #0b1220;
+    color: #e2e8f0;
+  }
+}
+
 * {
   box-sizing: border-box;
+}
+
+/* 减弱动效偏好：关闭动画/过渡/平滑滚动 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

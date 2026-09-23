@@ -1,8 +1,9 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState } from "react";
+import { api } from "@/utils/api";
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 
 function startOfMonth(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -18,6 +19,14 @@ function toCalendarDay(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
 }
 
+/** 生成本地时区的 YYYY-MM-DD，用作日期按钮的可访问名称 */
+function toISODate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export default function Calendar({
   selectedDate,
   onSelectDate,
@@ -26,6 +35,10 @@ export default function Calendar({
   onSelectDate: (date: Date) => void;
 }) {
   const [currentMonth, setCurrentMonth] = useState(startOfMonth(selectedDate));
+  const { data: monthDays = [] } = api.log.getMonthDays.useQuery({
+    month: currentMonth,
+  });
+  const daysWithLogs = useMemo(() => new Set(monthDays), [monthDays]);
 
   const days = useMemo(() => {
     const start = startOfMonth(currentMonth);
@@ -41,13 +54,16 @@ export default function Calendar({
     });
   }, [currentMonth]);
 
-  const monthLabel = currentMonth.toLocaleDateString("en-US", {
+  const monthLabel = currentMonth.toLocaleDateString("zh-CN", {
     year: "numeric",
     month: "long",
   });
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <section
+      aria-labelledby="calendar-month"
+      className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/70"
+    >
       <div className="flex items-center justify-between">
         <button
           type="button"
@@ -56,11 +72,17 @@ export default function Calendar({
               new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1),
             )
           }
-          className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500 hover:border-indigo-300 hover:text-indigo-600"
+          aria-label="上个月"
+          className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500 hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-400 dark:hover:border-indigo-400 dark:hover:text-indigo-300"
         >
-          Prev
+          上月
         </button>
-        <div className="text-sm font-semibold text-slate-700">{monthLabel}</div>
+        <div
+          id="calendar-month"
+          className="text-sm font-semibold text-slate-700 dark:text-slate-200"
+        >
+          {monthLabel}
+        </div>
         <button
           type="button"
           onClick={() =>
@@ -68,13 +90,17 @@ export default function Calendar({
               new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1),
             )
           }
-          className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500 hover:border-indigo-300 hover:text-indigo-600"
+          aria-label="下个月"
+          className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500 hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-400 dark:hover:border-indigo-400 dark:hover:text-indigo-300"
         >
-          Next
+          下月
         </button>
       </div>
 
-      <div className="mt-4 grid grid-cols-7 gap-1 text-[11px] uppercase tracking-widest text-slate-400">
+      <div
+        aria-hidden="true"
+        className="mt-4 grid grid-cols-7 gap-1 text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400"
+      >
         {WEEKDAYS.map((day) => (
           <div key={day} className="text-center">
             {day}
@@ -85,27 +111,41 @@ export default function Calendar({
         {days.map((day) => {
           const isSelected =
             day.date.toDateString() === selectedDate.toDateString();
+          const hasLogs = day.inMonth && daysWithLogs.has(day.date.getDate());
           return (
             <button
               key={day.date.toISOString()}
               type="button"
               onClick={() => onSelectDate(day.date)}
               disabled={!day.inMonth}
-              className={`h-9 rounded-lg transition ${
+              aria-label={toISODate(day.date)}
+              aria-pressed={isSelected}
+              aria-current={isSelected ? "date" : undefined}
+              className={`flex h-10 flex-col items-center justify-center rounded-lg transition ${
                 day.inMonth
-                  ? "text-slate-700 hover:bg-indigo-50"
-                  : "text-slate-300"
+                  ? "text-slate-700 hover:bg-indigo-50 dark:text-slate-200 dark:hover:bg-indigo-500/15"
+                  : "text-slate-500 dark:text-slate-400"
               } ${
                 isSelected
-                  ? "bg-indigo-500 text-white hover:bg-indigo-500"
+                  ? "bg-indigo-600 text-white hover:bg-indigo-600 dark:bg-indigo-600 dark:hover:bg-indigo-600"
                   : ""
               }`}
             >
-              {day.label}
+              <span>{day.label}</span>
+              {hasLogs ? (
+                <span
+                  aria-hidden="true"
+                  className={`mt-0.5 h-1 w-1 rounded-full ${
+                    isSelected ? "bg-white" : "bg-indigo-500 dark:bg-indigo-400"
+                  }`}
+                />
+              ) : (
+                <span aria-hidden="true" className="mt-0.5 h-1 w-1" />
+              )}
             </button>
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }

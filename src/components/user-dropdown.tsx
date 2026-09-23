@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
@@ -26,14 +26,14 @@ export default function UserDropdown() {
   const generateApiToken = api.user.generateApiToken.useMutation({
     onSuccess: async (data) => {
       setApiToken(data.apiToken ?? "");
-      setApiTokenStatus("Token generated.");
+      setApiTokenStatus("令牌已生成。");
       await utils.user.getApiToken.invalidate();
     },
   });
   const revokeApiToken = api.user.revokeApiToken.useMutation({
     onSuccess: async () => {
       setApiToken("");
-      setApiTokenStatus("Token cleared.");
+      setApiTokenStatus("令牌已清除。");
       await utils.user.getApiToken.invalidate();
     },
   });
@@ -64,9 +64,9 @@ export default function UserDropdown() {
     if (!apiToken) return;
     try {
       await navigator.clipboard.writeText(apiToken);
-      setApiTokenStatus("Token copied.");
+      setApiTokenStatus("已复制。");
     } catch {
-      setApiTokenStatus("Copy failed.");
+      setApiTokenStatus("复制失败。");
     }
   };
 
@@ -116,39 +116,48 @@ export default function UserDropdown() {
     importLogs.mutate({ items });
   };
 
+  const userName = session?.user?.name ?? "账户";
+
   return (
     <div className="relative">
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
+        aria-label={`用户菜单（${userName}）`}
+        aria-expanded={open}
+        title={userName}
+        className="max-w-[10rem] truncate rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:border-indigo-200 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-300 dark:hover:border-indigo-400 dark:hover:text-indigo-300"
       >
-        {session?.user?.name ?? "Account"}
+        {userName}
       </button>
 
       {open ? (
-        <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-slate-200 bg-white p-4 text-sm shadow-lg">
+        <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-slate-200 bg-white p-4 text-sm shadow-lg dark:border-slate-700 dark:bg-slate-800">
           <div className="space-y-3">
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
-                Export / Import
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+                数据导出 / 导入
               </p>
               <div className="mt-2 flex gap-2">
                 <button
                   type="button"
                   onClick={onExport}
-                  className="flex-1 rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
+                  className="flex-1 rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:border-indigo-200 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-300 dark:hover:border-indigo-400 dark:hover:text-indigo-300"
                 >
-                  Export
+                  导出
                 </button>
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex-1 rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
+                  className="flex-1 rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:border-indigo-200 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-300 dark:hover:border-indigo-400 dark:hover:text-indigo-300"
                 >
-                  Import
+                  导入
                 </button>
+                <label htmlFor="import-file" className="sr-only">
+                  导入日志文件
+                </label>
                 <input
+                  id="import-file"
                   ref={fileInputRef}
                   type="file"
                   accept="application/json"
@@ -165,14 +174,18 @@ export default function UserDropdown() {
             </div>
 
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
                 Memos Token
               </p>
+              <label htmlFor="memos-token" className="sr-only">
+                Memos Token
+              </label>
               <input
+                id="memos-token"
                 value={memosToken}
                 onChange={(event) => setMemosToken(event.target.value)}
-                placeholder="Paste token"
-                className="mt-2 w-full rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600"
+                placeholder="粘贴 Token"
+                className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               />
               <button
                 type="button"
@@ -181,75 +194,87 @@ export default function UserDropdown() {
                     memosToken: memosToken.trim() ? memosToken.trim() : null,
                   })
                 }
-                className="mt-2 w-full rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
+                className="mt-2 w-full rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:border-indigo-200 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-300 dark:hover:border-indigo-400 dark:hover:text-indigo-300"
               >
-                Save token
+                保存 Token
               </button>
             </div>
 
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
                 Open API
               </p>
+              <label htmlFor="api-token" className="sr-only">
+                API 令牌
+              </label>
               <input
+                id="api-token"
                 value={apiToken}
                 readOnly
-                placeholder="Generate a token"
-                className="mt-2 w-full rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600"
+                placeholder="点击生成令牌"
+                className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               />
               <div className="mt-2 flex gap-2">
                 <button
                   type="button"
                   onClick={() => generateApiToken.mutate()}
                   disabled={generateApiToken.isLoading}
-                  className="flex-1 rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:border-indigo-200 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="flex-1 rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:border-indigo-200 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:border-indigo-400 dark:hover:text-indigo-300"
                 >
-                  {apiToken ? "Regenerate" : "Generate token"}
+                  {apiToken ? "重新生成" : "生成令牌"}
                 </button>
                 <button
                   type="button"
                   onClick={onCopyApiToken}
                   disabled={!apiToken}
-                  className="flex-1 rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:border-indigo-200 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="flex-1 rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:border-indigo-200 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:border-indigo-400 dark:hover:text-indigo-300"
                 >
-                  Copy
+                  复制
                 </button>
               </div>
               <button
                 type="button"
                 onClick={() => revokeApiToken.mutate()}
                 disabled={!apiToken || revokeApiToken.isLoading}
-                className="mt-2 w-full rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:border-indigo-200 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-2 w-full rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:border-indigo-200 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:border-indigo-400 dark:hover:text-indigo-300"
               >
-                Revoke token
+                撤销令牌
               </button>
-              <p className="mt-2 text-[11px] text-slate-400">
-                POST /api/open/log with Authorization: Bearer &lt;token&gt;
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                POST /api/open/log，请求头 Authorization: Bearer &lt;token&gt;
               </p>
               {apiTokenStatus ? (
-                <p className="mt-1 text-[11px] text-slate-400">
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400" role="status">
                   {apiTokenStatus}
                 </p>
               ) : null}
             </div>
 
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
                 修改密码
               </p>
+              <label htmlFor="current-password" className="sr-only">
+                当前密码
+              </label>
               <input
+                id="current-password"
                 type="password"
                 value={currentPassword}
                 onChange={(event) => setCurrentPassword(event.target.value)}
                 placeholder="当前密码"
-                className="mt-2 w-full rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600"
+                className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               />
+              <label htmlFor="new-password" className="sr-only">
+                新密码
+              </label>
               <input
+                id="new-password"
                 type="password"
                 value={newPassword}
                 onChange={(event) => setNewPassword(event.target.value)}
-                placeholder="新密码 (至少6位)"
-                className="mt-2 w-full rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600"
+                placeholder="新密码（至少 6 位）"
+                className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               />
               <button
                 type="button"
@@ -268,12 +293,12 @@ export default function UserDropdown() {
                   });
                 }}
                 disabled={changePassword.isLoading}
-                className="mt-2 w-full rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:border-indigo-200 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-2 w-full rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:border-indigo-200 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:border-indigo-400 dark:hover:text-indigo-300"
               >
                 修改密码
               </button>
               {passwordStatus ? (
-                <p className="mt-2 text-[11px] text-slate-400">
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400" role="status">
                   {passwordStatus}
                 </p>
               ) : null}
@@ -282,9 +307,9 @@ export default function UserDropdown() {
             <button
               type="button"
               onClick={() => signOut({ callbackUrl: "/login" })}
-              className="w-full rounded-lg bg-slate-900 px-3 py-2 text-xs text-white"
+              className="w-full rounded-lg bg-slate-900 px-3 py-2 text-xs text-white hover:bg-slate-800 dark:bg-slate-600 dark:hover:bg-slate-500"
             >
-              Sign out
+              退出登录
             </button>
           </div>
         </div>

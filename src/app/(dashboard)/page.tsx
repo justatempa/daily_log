@@ -82,7 +82,7 @@ export default function DashboardPage() {
 
   const dateLabel = useMemo(
     () =>
-      selectedDate.toLocaleDateString("en-US", {
+      selectedDate.toLocaleDateString("zh-CN", {
         weekday: "long",
         year: "numeric",
         month: "long",
@@ -219,7 +219,7 @@ export default function DashboardPage() {
 
     sorted.forEach((log) => {
       const timestamp = formatDateTime(log.date);
-      const content = log.content?.trim() || "Tagged entry";
+      const content = log.content?.trim() || "仅标签记录";
 
       if (log.isTodo) {
         const checkbox = log.isTodoDone ? "[x]" : "[ ]";
@@ -248,17 +248,17 @@ export default function DashboardPage() {
 
   const onSaveToMemos = async () => {
     if (!memosApiUrl) {
-      setMemosStatus("Missing MEMOS API URL.");
+      setMemosStatus("未配置 Memos API 地址。");
       return;
     }
     const token = memosQuery.data?.memosToken;
     if (!token) {
-      setMemosStatus("Set a memos token in the user menu.");
+      setMemosStatus("请在用户菜单中设置 Memos Token。");
       return;
     }
     const logs = logsQuery.data ?? [];
     if (logs.length === 0) {
-      setMemosStatus("No logs for the selected date.");
+      setMemosStatus("所选日期没有日志。");
       return;
     }
 
@@ -266,7 +266,7 @@ export default function DashboardPage() {
       .map((log) => {
         const groups = parseTagGroups(log.tags);
         const tagLine = groups.length ? ` (${formatTagGroups(groups)})` : "";
-        const line = log.content?.trim() ? log.content.trim() : "Tagged entry";
+        const line = log.content?.trim() ? log.content.trim() : "仅标签记录";
         return `- ${line}${tagLine}`;
       })
       .join("\n");
@@ -287,150 +287,180 @@ export default function DashboardPage() {
       });
 
       if (!response.ok) {
-        setMemosStatus("Failed to save to memos.");
+        setMemosStatus("保存到 Memos 失败。");
         return;
       }
 
-      setMemosStatus("Saved to memos.");
+      setMemosStatus("已保存到 Memos。");
     } catch {
-      setMemosStatus("Failed to save to memos.");
+      setMemosStatus("保存到 Memos 失败。");
     }
   };
 
   return (
     <div className="space-y-6">
       <section className="grid gap-6 lg:grid-cols-[minmax(0,800px)_360px] xl:grid-cols-[minmax(0,900px)_360px]">
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/70">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-indigo-500">
-                Selected day
+            <section aria-labelledby="selected-day-label">
+              <p
+                id="selected-day-label"
+                className="text-xs uppercase tracking-[0.3em] text-indigo-600 dark:text-indigo-400"
+              >
+                所选日期
               </p>
-              <h2 className="mt-2 text-xl font-semibold text-slate-900">
+              <h2 className="mt-2 text-xl font-semibold text-slate-900 dark:text-slate-100">
                 {dateLabel}
               </h2>
-            </div>
-            <div className="flex flex-col items-end gap-2 text-xs text-slate-400">
-              <span>{logsQuery.data?.length ?? 0} entries</span>
+            </section>
+            <div className="flex flex-col items-end gap-2 text-xs text-slate-500 dark:text-slate-400">
+              <span>{logsQuery.data?.length ?? 0} 条记录</span>
               <button
                 type="button"
                 onClick={onSaveToMemos}
-                className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
+                title="把当日日志按 Markdown 格式推送到 Memos"
+                className="whitespace-nowrap rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:border-indigo-200 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-300 dark:hover:border-indigo-400 dark:hover:text-indigo-300"
               >
-                Save to memos
+                保存到 Memos
               </button>
             </div>
           </div>
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-2 text-xs">
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setFilter("all")}
-                className={`rounded-full px-3 py-1 ${
-                  filter === "all"
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-800/60">
+            <div className="flex flex-col gap-y-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4">
+              <div
+                role="group"
+                aria-label="筛选日志"
+                className="flex flex-wrap items-center gap-2"
               >
-                全部
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilter("todo")}
-                className={`rounded-full px-3 py-1 ${
-                  filter === "todo"
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
+                <button
+                  type="button"
+                  onClick={() => setFilter("all")}
+                  aria-pressed={filter === "all"}
+                  className={`rounded-full px-3 py-1 ${
+                    filter === "all"
+                      ? "bg-white text-slate-900 shadow-sm dark:bg-slate-600 dark:text-white"
+                      : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                  }`}
+                >
+                  全部
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilter("todo")}
+                  aria-pressed={filter === "todo"}
+                  title="所有待办（含已完成）"
+                  className={`rounded-full px-3 py-1 ${
+                    filter === "todo"
+                      ? "bg-white text-slate-900 shadow-sm dark:bg-slate-600 dark:text-white"
+                      : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                  }`}
+                >
+                  Todo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilter("todo_open")}
+                  aria-pressed={filter === "todo_open"}
+                  title="仅未完成的待办"
+                  className={`rounded-full px-3 py-1 ${
+                    filter === "todo_open"
+                      ? "bg-white text-slate-900 shadow-sm dark:bg-slate-600 dark:text-white"
+                      : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                  }`}
+                >
+                  未完成
+                </button>
+              </div>
+              <div
+                aria-hidden="true"
+                className="hidden h-5 w-px bg-slate-200 sm:block dark:bg-slate-600"
+              />
+              <div
+                role="group"
+                aria-label="工具"
+                className="flex flex-wrap items-center gap-2"
               >
-                Todo
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilter("todo_open")}
-                className={`rounded-full px-3 py-1 ${
-                  filter === "todo_open"
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                未完成
-              </button>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPrivacyMode((prev) => !prev)}
-                title={privacyMode ? "关闭隐私模式" : "开启隐私模式"}
-                aria-pressed={privacyMode}
-                className={`flex items-center gap-1.5 rounded-full border px-3 py-1 shadow-sm transition ${
-                  privacyMode
-                    ? "border-indigo-500 bg-indigo-500 text-white"
-                    : "border-slate-200 bg-white text-slate-500 hover:text-indigo-600"
-                }`}
-              >
-                {privacyMode ? (
-                  <svg
-                    className="h-3.5 w-3.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
-                    />
-                  </svg>
-                ) : (
-                  <svg
-                    className="h-3.5 w-3.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                    />
-                  </svg>
-                )}
-                隐私
-              </button>
-              <button
-                type="button"
-                onClick={onCopyLogs}
-                className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-500 shadow-sm hover:text-indigo-600"
-              >
-                复制
-              </button>
-              <button
-                type="button"
-                onClick={() => timelineRef.current?.scrollToTop()}
-                className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-500 shadow-sm hover:text-indigo-600"
-              >
-                顶部
-              </button>
-              <button
-                type="button"
-                onClick={() => timelineRef.current?.scrollToBottom()}
-                className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-500 shadow-sm hover:text-indigo-600"
-              >
-                底部
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setPrivacyMode((prev) => !prev)}
+                  title={privacyMode ? "关闭隐私模式" : "开启隐私模式（模糊日志内容）"}
+                  aria-pressed={privacyMode}
+                  className={`flex items-center gap-1.5 rounded-full border px-3 py-1 shadow-sm transition ${
+                    privacyMode
+                      ? "border-indigo-600 bg-indigo-600 text-white"
+                      : "border-slate-200 bg-white text-slate-500 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-indigo-300"
+                  }`}
+                >
+                  {privacyMode ? (
+                    <svg
+                      className="h-3.5 w-3.5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
+                      />
+                    </svg>
+                  ) : (
+                    <svg
+                      className="h-3.5 w-3.5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                      />
+                    </svg>
+                  )}
+                  隐私
+                </button>
+                <button
+                  type="button"
+                  onClick={onCopyLogs}
+                  title="复制当日全部日志到剪贴板"
+                  className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-500 shadow-sm hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-indigo-300"
+                >
+                  复制
+                </button>
+                <button
+                  type="button"
+                  onClick={() => timelineRef.current?.scrollToTop()}
+                  title="滚动到时间轴顶部"
+                  className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-500 shadow-sm hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-indigo-300"
+                >
+                  顶部
+                </button>
+                <button
+                  type="button"
+                  onClick={() => timelineRef.current?.scrollToBottom()}
+                  title="滚动到时间轴底部"
+                  className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-500 shadow-sm hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-indigo-300"
+                >
+                  底部
+                </button>
+              </div>
             </div>
           </div>
           {memosStatus ? (
-            <p className="mt-3 text-xs text-slate-400">{memosStatus}</p>
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400" role="status">
+              {memosStatus}
+            </p>
           ) : null}
           <div className="mt-6">
             <Timeline
@@ -471,7 +501,10 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <section className="sticky bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur">
+      <section
+        aria-label="快捷记录"
+        className="sticky bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur dark:border-slate-800 dark:bg-slate-900/95"
+      >
         <div className="mx-auto w-full max-w-6xl space-y-2">
           {quickTags.length > 0 && (
             <div className="flex flex-wrap gap-2">
@@ -479,7 +512,7 @@ export default function DashboardPage() {
                 group.labels.map((label) => (
                   <span
                     key={`${group.category}-${label}`}
-                    className="rounded-full border border-indigo-500 bg-indigo-50 px-3 py-1 text-xs text-indigo-600"
+                    className="rounded-full border border-indigo-600 bg-indigo-50 px-3 py-1 text-xs text-indigo-600 dark:border-indigo-400 dark:bg-indigo-500/15 dark:text-indigo-300"
                   >
                     {group.category}: {label}
                   </span>
@@ -491,10 +524,12 @@ export default function DashboardPage() {
             <button
               type="button"
               onClick={() => setIsTodo((prev) => !prev)}
+              aria-pressed={isTodo}
+              title="标记为待办"
               className={`rounded-full border px-3 py-2 text-xs transition ${
                 isTodo
-                  ? "border-indigo-500 bg-indigo-500 text-white shadow-sm"
-                  : "border-slate-200 text-slate-500 hover:border-indigo-200 hover:text-indigo-600"
+                  ? "border-indigo-600 bg-indigo-600 text-white shadow-sm"
+                  : "border-slate-200 text-slate-500 hover:border-indigo-200 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-400 dark:hover:border-indigo-400 dark:hover:text-indigo-300"
               }`}
             >
               Todo
@@ -508,16 +543,17 @@ export default function DashboardPage() {
                   onSubmit();
                 }
               }}
-              placeholder="Add a note..."
-              className="min-h-[52px] w-full flex-1 resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              placeholder="写点什么…"
+              aria-label="日志内容"
+              className="min-h-[52px] w-full flex-1 resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-indigo-500"
             />
             <button
               type="button"
               onClick={onSubmit}
               disabled={!message.trim() && quickTags.length === 0}
-              className="rounded-xl bg-indigo-500 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Send
+              发送
             </button>
           </div>
         </div>
@@ -526,7 +562,8 @@ export default function DashboardPage() {
         <button
           type="button"
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          className="fixed bottom-24 right-6 rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-xs text-slate-600 shadow-lg backdrop-blur hover:text-indigo-600"
+          aria-label="回到页面顶部"
+          className="fixed bottom-24 right-6 rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-xs text-slate-600 shadow-lg backdrop-blur hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-800/90 dark:text-slate-300 dark:hover:text-indigo-300"
         >
           回到顶部
         </button>

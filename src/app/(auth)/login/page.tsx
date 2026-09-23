@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
@@ -30,7 +30,7 @@ export default function LoginPage() {
     });
 
     if (!result?.ok) {
-      setError("Invalid credentials or inactive account.");
+      setError("邮箱或密码错误，或账户未激活。");
     } else {
       router.replace("/");
     }
@@ -43,16 +43,16 @@ export default function LoginPage() {
       <div className="w-full max-w-md bg-white/10 backdrop-blur rounded-3xl border border-white/10 p-8 shadow-2xl">
         <div className="mb-8">
           <p className="text-xs uppercase tracking-[0.3em] text-indigo-200">Daily Log</p>
-          <h1 className="mt-3 text-3xl font-semibold">Welcome back</h1>
-          <p className="mt-2 text-sm text-indigo-100/80">
-            Sign in to access your calendar timeline.
+          <h1 className="mt-3 text-3xl font-semibold">欢迎回来</h1>
+          <p className="mt-2 text-sm text-indigo-100/90">
+            登录以访问你的日志时间线。
           </p>
         </div>
 
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-2">
             <label className="text-xs uppercase tracking-widest text-indigo-100">
-              Email
+              邮箱
             </label>
             <input
               type="email"
@@ -60,25 +60,29 @@ export default function LoginPage() {
               onChange={(event) => setEmail(event.target.value)}
               className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-indigo-200/60 focus:outline-none focus:ring-2 focus:ring-indigo-400"
               placeholder="you@example.com"
+              autoComplete="email"
               required
             />
           </div>
           <div className="space-y-2">
             <label className="text-xs uppercase tracking-widest text-indigo-100">
-              Password
+              密码
             </label>
             <input
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-indigo-200/60 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              placeholder="Your password"
+              placeholder="输入密码"
+              autoComplete="current-password"
               required
             />
           </div>
 
           {error ? (
-            <p className="text-sm text-rose-200">{error}</p>
+            <p className="text-sm text-rose-200" role="alert">
+              {error}
+            </p>
           ) : null}
 
           <button
@@ -86,7 +90,7 @@ export default function LoginPage() {
             disabled={isSubmitting}
             className="w-full rounded-xl bg-indigo-400 px-4 py-3 text-sm font-semibold text-indigo-950 transition hover:bg-indigo-300 disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {isSubmitting ? "Signing in..." : "Sign in"}
+            {isSubmitting ? "登录中…" : "登录"}
           </button>
         </form>
       </div>

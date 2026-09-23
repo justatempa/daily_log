@@ -1,4 +1,4 @@
-﻿import { TRPCError } from "@trpc/server";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, router } from "@/server/api/trpc";
 import { parseTagGroups } from "@/utils/tags";
@@ -96,6 +96,31 @@ export const logRouter = router({
           replies: { orderBy: { createdAt: "asc" } },
         },
       });
+    }),
+  /** 返回某月内有主日志的「日」集合，供日历标记小圆点 */
+  getMonthDays: protectedProcedure
+    .input(z.object({ month: z.date() }))
+    .query(async ({ ctx, input }) => {
+      const start = new Date(
+        input.month.getFullYear(),
+        input.month.getMonth(),
+        1,
+      );
+      const end = new Date(
+        input.month.getFullYear(),
+        input.month.getMonth() + 1,
+        1,
+      );
+      const logs = await ctx.db.log.findMany({
+        where: {
+          userId: ctx.session!.user.id,
+          parentId: null,
+          date: { gte: start, lt: end },
+        },
+        select: { date: true },
+      });
+      // 用本地时区的「日」去重
+      return Array.from(new Set(logs.map((log) => log.date.getDate())));
     }),
   getReplies: protectedProcedure
     .input(z.object({ logId: z.string() }))
