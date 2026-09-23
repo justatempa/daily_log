@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useImperativeHandle, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import { api } from "@/utils/api";
 import { type TagGroup } from "@/utils/tags";
 
@@ -13,14 +13,33 @@ export type QuickInputHandle = {
   clearSelection: () => void;
 };
 
+function tagsToSelected(groups: TagGroup[]): SelectedTag[] {
+  return groups.flatMap((group) =>
+    group.labels.map((label) => ({ category: group.category, label })),
+  );
+}
+
 const QuickInput = forwardRef<QuickInputHandle, {
   onTagsChange: (tags: TagGroup[]) => void;
-}>(({ onTagsChange }, ref) => {
+  /**
+   * 受外部控制的已选标签（父组件的 quickTags）。
+   * 多个 QuickInput 实例（桌面侧栏 / 移动端弹层）共用同一份选中态，
+   * 任一实例的变化都会通过 onTagsChange 回写，再经本 effect 同步到全部实例。
+   */
+  initialSelected?: TagGroup[];
+}>(({ onTagsChange, initialSelected = [] }, ref) => {
   const { data, isLoading } = api.quickTag.getGrouped.useQuery();
   const utils = api.useUtils();
-  const [selected, setSelected] = useState<SelectedTag[]>([]);
+  const [selected, setSelected] = useState<SelectedTag[]>(() =>
+    tagsToSelected(initialSelected),
+  );
   const [newCategory, setNewCategory] = useState("");
   const [newLabel, setNewLabel] = useState("");
+
+  // 外部选中态变化（其他实例切换/发送后清空）时同步本实例的选中
+  useEffect(() => {
+    setSelected(tagsToSelected(initialSelected));
+  }, [initialSelected]);
 
   const addMutation = api.quickTag.add.useMutation({
     onSuccess: async () => {

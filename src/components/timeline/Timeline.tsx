@@ -58,6 +58,11 @@ const Timeline = forwardRef<TimelineHandle, {
   reverseSort?: boolean;
   /** true 时在每条日志上显示完整日期（跨天搜索用）；默认 false 只显示时分 */
   showDate?: boolean;
+  /**
+   * true（默认）时容器内部滚动（max-h-[60vh] overflow-y-auto），
+   * false 时容器不做内部滚动，滚动交给页面（移动端整页滚动用）。
+   */
+  scrollable?: boolean;
   onToggleTodo: (id: string) => void;
   onDelete: (id: string) => void;
   onUpdate: (id: string, content: string) => void;
@@ -70,6 +75,7 @@ const Timeline = forwardRef<TimelineHandle, {
   privacyMode = false,
   reverseSort = false,
   showDate = false,
+  scrollable = true,
   onToggleTodo,
   onDelete,
   onUpdate,
@@ -107,28 +113,46 @@ const Timeline = forwardRef<TimelineHandle, {
     ref,
     () => ({
       scrollToTop: () => {
-        const container = containerRef.current;
-        if (container) {
-          container.scrollTo({ top: 0, behavior: "smooth" });
+        if (scrollable) {
+          containerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+        } else {
+          window.scrollTo({ top: 0, behavior: "smooth" });
         }
       },
       scrollToBottom: () => {
-        const container = containerRef.current;
-        if (container) {
-          container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+        if (scrollable) {
+          const container = containerRef.current;
+          if (container) {
+            container.scrollTo({
+              top: container.scrollHeight,
+              behavior: "smooth",
+            });
+          }
+        } else {
+          window.scrollTo({
+            top: document.documentElement.scrollHeight,
+            behavior: "smooth",
+          });
         }
       },
     }),
-    [],
+    [scrollable],
   );
 
   useEffect(() => {
     if (!scrollToBottomKey) return;
-    const container = containerRef.current;
-    if (container) {
-      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    if (scrollable) {
+      const container = containerRef.current;
+      if (container) {
+        container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+      }
+    } else {
+      window.scrollTo({
+        top: document.documentElement.scrollHeight,
+        behavior: "smooth",
+      });
     }
-  }, [scrollToBottomKey]);
+  }, [scrollToBottomKey, scrollable]);
 
   useEffect(() => {
     if (!activeReplyId) return;
@@ -143,10 +167,14 @@ const Timeline = forwardRef<TimelineHandle, {
   return (
     <div
       ref={containerRef}
-      className="max-h-[60vh] overflow-y-auto pr-2"
+      className={
+        scrollable
+          ? "max-h-[60vh] overflow-y-auto pr-2"
+          : "min-h-0"
+      }
     >
       {hasLogs ? (
-        <div className="space-y-4 pb-24">
+        <div className={`space-y-4 ${scrollable ? "pb-24" : "pb-2"}`}>
           {sorted.map((log) => (
             <div
               key={log.id}

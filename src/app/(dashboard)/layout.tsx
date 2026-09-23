@@ -25,25 +25,32 @@ export default async function DashboardLayout({
         跳到主要内容
       </a>
       <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-6 py-4">
+        {/* 移动端固定 48px 高单行（配合页面内粘性工具栏 top-12），lg 起恢复换行布局 */}
+        <div className="mx-auto flex h-12 max-w-6xl items-center justify-between gap-x-4 px-4 lg:h-auto lg:flex-wrap lg:gap-x-6 lg:py-4 lg:px-6">
           <div className="shrink-0">
-            <p className="whitespace-nowrap text-xs uppercase tracking-[0.3em] text-indigo-600 dark:text-indigo-400">
+            <p className="whitespace-nowrap text-[11px] uppercase tracking-[0.3em] text-indigo-600 dark:text-indigo-400 lg:text-xs">
               Daily Log
             </p>
-            <h1 className="whitespace-nowrap text-lg font-semibold dark:text-slate-100">
+            <h1 className="hidden whitespace-nowrap text-lg font-semibold dark:text-slate-100 sm:block">
               日志时间线
             </h1>
           </div>
           <nav
             aria-label="主导航"
-            className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-600 dark:text-slate-300"
+            className="flex items-center gap-x-4 text-sm text-slate-600 dark:text-slate-300"
           >
-            <NavLinks isAdmin={session.user.role === "ADMIN"} />
+            {/* 移动端隐藏导航链接，搜索入口在页面工具栏内 */}
+            <div className="hidden items-center gap-x-4 sm:flex lg:flex-wrap lg:gap-y-2 lg:gap-x-6">
+              <NavLinks isAdmin={session.user.role === "ADMIN"} />
+            </div>
             <UserDropdown />
           </nav>
         </div>
       </header>
-      <main id="main-content" className="mx-auto max-w-6xl px-6 py-8">
+      <main
+        id="main-content"
+        className="mx-auto max-w-6xl px-4 py-4 sm:px-6 sm:py-8"
+      >
         {children}
       </main>
     </div>
