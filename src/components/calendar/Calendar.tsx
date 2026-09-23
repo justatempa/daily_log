@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "@/utils/api";
 
 const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
@@ -35,6 +35,11 @@ export default function Calendar({
   onSelectDate: (date: Date) => void;
 }) {
   const [currentMonth, setCurrentMonth] = useState(startOfMonth(selectedDate));
+
+  // 选中日期变化（如发送日志后跳回今天）时，日历跟随切到对应月份
+  useEffect(() => {
+    setCurrentMonth(startOfMonth(selectedDate));
+  }, [selectedDate]);
   // year/month 用浏览器本地时区，避免服务器时区导致月份错位；
   // 返回的是日志时间戳，在本地时区换算成「日」并严格过滤到当前月
   const { data: monthLogDates = [] } = api.log.getMonthDays.useQuery({

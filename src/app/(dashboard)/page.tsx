@@ -115,17 +115,26 @@ export default function DashboardPage() {
           setPendingLogs((prev) =>
             prev.filter((item) => item.id !== pending.id),
           );
-          utils.log.getByDate.setData(dayRange, (old) => {
-            const list = old ?? [];
-            return [
-              ...list,
-              {
-                ...created,
-                date: new Date(created.date),
-                replies: [],
-              },
-            ].sort((a, b) => a.date.getTime() - b.date.getTime());
-          });
+          // 乐观更新按「日志实际所在日期」（本地时区）写入缓存，
+          // 与发送时选中的日历日期无关
+          const dayStart = new Date(pending.date);
+          dayStart.setHours(0, 0, 0, 0);
+          const dayEnd = new Date(dayStart);
+          dayEnd.setDate(dayEnd.getDate() + 1);
+          utils.log.getByDate.setData(
+            { start: dayStart, end: dayEnd },
+            (old) => {
+              const list = old ?? [];
+              return [
+                ...list,
+                {
+                  ...created,
+                  date: new Date(created.date),
+                  replies: [],
+                },
+              ].sort((a, b) => a.date.getTime() - b.date.getTime());
+            },
+          );
           setScrollToken((value) => value + 1);
         },
         onError: () => {
@@ -144,17 +153,11 @@ export default function DashboardPage() {
   const onSubmit = () => {
     if (!message.trim() && quickTags.length === 0) return;
     const now = new Date();
-    const entryDate = new Date(selectedDate);
-    entryDate.setHours(
-      now.getHours(),
-      now.getMinutes(),
-      now.getSeconds(),
-      now.getMilliseconds(),
-    );
+    // 日志日期固定为「今天 + 当前时刻」，与日历选中的日期无关
     const pending: PendingLog = {
       id: newTempId(),
       content: message.trim(),
-      date: entryDate,
+      date: now,
       tags: serializeTagGroups(quickTags),
       isTodo,
       status: "sending",
@@ -165,6 +168,8 @@ export default function DashboardPage() {
     setMessage("");
     setIsTodo(false);
     setQuickTags([]);
+    // 发送后自动跳回今天（日历与日期列表同步切回今天所在月份）
+    setSelectedDate(now);
     quickInputRef.current?.clearSelection();
     setScrollToken((value) => value + 1);
     // 异步发送
