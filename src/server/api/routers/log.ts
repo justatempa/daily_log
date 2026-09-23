@@ -3,14 +3,6 @@ import { z } from "zod";
 import { protectedProcedure, router } from "@/server/api/trpc";
 import { parseTagGroups } from "@/utils/tags";
 
-const dayRange = (date: Date) => {
-  const start = new Date(date);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
-  return { start, end };
-};
-
 export const logRouter = router({
   getAll: protectedProcedure.query(({ ctx }) => {
     return ctx.db.log.findMany({
@@ -81,15 +73,19 @@ export const logRouter = router({
 
       return logs;
     }),
+  /**
+   * 获取某天的日志。start/end 由客户端按「本地时区」给出
+   * （start=当日 00:00，end=次日 00:00 的时间戳），服务端不做任何时区换算，
+   * 直接按区间过滤，避免服务器时区与用户时区不一致导致日期错位。
+   */
   getByDate: protectedProcedure
-    .input(z.object({ date: z.date() }))
+    .input(z.object({ start: z.date(), end: z.date() }))
     .query(async ({ ctx, input }) => {
-      const { start, end } = dayRange(input.date);
       return ctx.db.log.findMany({
         where: {
           userId: ctx.session!.user.id,
           parentId: null,
-          date: { gte: start, lt: end },
+          date: { gte: input.start, lt: input.end },
         },
         orderBy: { createdAt: "asc" },
         include: {
@@ -97,30 +93,29 @@ export const logRouter = router({
         },
       });
     }),
-  /** 返回某月内有主日志的「日」集合，供日历标记小圆点 */
+  /**
+   * 返回某月内有主日志的所有日期时间戳，供日历标记小圆点。
+   * year/month 为客户端本地时区的年月（month: 0-11）；服务端仅用 UTC 构造
+   * 过滤区间并前后各放宽 1 天，具体「哪一天有日志」由客户端按本地时区判定，
+   * 不依赖服务器时区。
+   */
   getMonthDays: protectedProcedure
-    .input(z.object({ month: z.date() }))
+    .input(z.object({ year: z.number(), month: z.number() }))
     .query(async ({ ctx, input }) => {
-      const start = new Date(
-        input.month.getFullYear(),
-        input.month.getMonth(),
-        1,
-      );
-      const end = new Date(
-        input.month.getFullYear(),
-        input.month.getMonth() + 1,
-        1,
-      );
+      const start = new Date(Date.UTC(input.year, input.month, 1));
+      const end = new Date(Date.UTC(input.year, input.month + 1, 1));
+      // 放宽一天，覆盖客户端时区相对 UTC 的偏移（最多 ±14h），客户端会再按本地月份过滤
+      const gte = new Date(start.getTime() - 24 * 60 * 60 * 1000);
+      const lt = new Date(end.getTime() + 24 * 60 * 60 * 1000);
       const logs = await ctx.db.log.findMany({
         where: {
           userId: ctx.session!.user.id,
           parentId: null,
-          date: { gte: start, lt: end },
+          date: { gte, lt },
         },
         select: { date: true },
       });
-      // 用本地时区的「日」去重
-      return Array.from(new Set(logs.map((log) => log.date.getDate())));
+      return logs.map((log) => log.date);
     }),
   getReplies: protectedProcedure
     .input(z.object({ logId: z.string() }))

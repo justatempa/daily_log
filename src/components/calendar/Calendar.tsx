@@ -35,10 +35,25 @@ export default function Calendar({
   onSelectDate: (date: Date) => void;
 }) {
   const [currentMonth, setCurrentMonth] = useState(startOfMonth(selectedDate));
-  const { data: monthDays = [] } = api.log.getMonthDays.useQuery({
-    month: currentMonth,
+  // year/month 用浏览器本地时区，避免服务器时区导致月份错位；
+  // 返回的是日志时间戳，在本地时区换算成「日」并严格过滤到当前月
+  const { data: monthLogDates = [] } = api.log.getMonthDays.useQuery({
+    year: currentMonth.getFullYear(),
+    month: currentMonth.getMonth(),
   });
-  const daysWithLogs = useMemo(() => new Set(monthDays), [monthDays]);
+  const daysWithLogs = useMemo(() => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    return new Set(
+      monthLogDates
+        .map((value) => new Date(value))
+        .filter(
+          (date) =>
+            date.getFullYear() === year && date.getMonth() === month,
+        )
+        .map((date) => date.getDate()),
+    );
+  }, [monthLogDates, currentMonth]);
 
   const days = useMemo(() => {
     const start = startOfMonth(currentMonth);

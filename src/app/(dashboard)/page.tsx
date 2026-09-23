@@ -50,7 +50,17 @@ export default function DashboardPage() {
   const timelineRef = useRef<TimelineHandle | null>(null);
   const quickInputRef = useRef<QuickInputHandle | null>(null);
 
-  const logsQuery = api.log.getByDate.useQuery({ date: selectedDate });
+  // 本地时区的当日区间（start=当日 00:00，end=次日 00:00），
+  // 由浏览器本地时区定义，服务端不再做时区换算
+  const dayRange = useMemo(() => {
+    const start = new Date(selectedDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    return { start, end };
+  }, [selectedDate]);
+
+  const logsQuery = api.log.getByDate.useQuery(dayRange);
   const memosQuery = api.setting.getMemosToken.useQuery();
   const utils = api.useUtils();
   const addLog = api.log.add.useMutation();
@@ -105,7 +115,7 @@ export default function DashboardPage() {
           setPendingLogs((prev) =>
             prev.filter((item) => item.id !== pending.id),
           );
-          utils.log.getByDate.setData({ date: selectedDate }, (old) => {
+          utils.log.getByDate.setData(dayRange, (old) => {
             const list = old ?? [];
             return [
               ...list,
