@@ -27,6 +27,8 @@ model User {
 model Log {
   id        String   @id @default(cuid())
   userId    String
+  /// 客户端生成的幂等键：同一消息重发复用，避免重复插入
+  clientId  String?  @unique
   content   String
   date      DateTime
   tags      String

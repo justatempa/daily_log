@@ -19,6 +19,8 @@ export const logRouter = router({
           .optional(),
         startDate: z.date().optional(),
         endDate: z.date().optional(),
+        /** all=全部（不过滤），done=已完成待办，undone=未完成待办 */
+        todoStatus: z.enum(["all", "done", "undone"]).optional(),
       }),
     )
     .query(async ({ ctx, input }) => {
@@ -27,6 +29,8 @@ export const logRouter = router({
         parentId: null;
         content?: { contains: string };
         date?: { gte?: Date; lte?: Date };
+        isTodo?: boolean;
+        isTodoDone?: boolean;
       } = {
         userId: ctx.session!.user.id,
         parentId: null,
@@ -50,6 +54,15 @@ export const logRouter = router({
         }
       }
 
+      // Todo 状态：已完成/未完成都只命中待办条目，非待办在筛选时不展示
+      if (input.todoStatus === "done") {
+        where.isTodo = true;
+        where.isTodoDone = true;
+      } else if (input.todoStatus === "undone") {
+        where.isTodo = true;
+        where.isTodoDone = false;
+      }
+
       const logs = await ctx.db.log.findMany({
         where,
         orderBy: { date: "desc" },
@@ -58,12 +71,13 @@ export const logRouter = router({
         },
       });
 
-      // tags 列存的是 JSON 字符串，SQL 层无法直接过滤，这里在内存中做 OR 匹配
+      // tags 列存的是 JSON 字符串，SQL 层无法直接过滤，这里在内存中做 AND 匹配：
+      // 选中多个标签时，日志必须同时包含全部标签（与关键字/时间/Todo 状态为 AND 关系）
       const selected = input.selectedTags ?? [];
       if (selected.length > 0) {
         return logs.filter((log) => {
           const groups = parseTagGroups(log.tags);
-          return selected.some((sel) => {
+          return selected.every((sel) => {
             const group = groups.find((g) => g.category === sel.category);
             if (!group) return false;
             return group.labels.includes(sel.label);
@@ -160,6 +174,11 @@ export const logRouter = router({
           tags: z.string().optional().default(""),
           isTodo: z.boolean().optional().default(false),
           parentId: z.string().nullable().optional(),
+          /**
+           * 客户端幂等键（clientId）：重发时复用同一个 clientId，
+           * 服务端若已存在同 clientId 记录则直接返回，避免重复插入。
+           */
+          clientId: z.string().optional(),
         })
         .refine(
           (data) =>
@@ -167,7 +186,19 @@ export const logRouter = router({
           { message: "content or tags required" },
         ),
     )
-    .mutation(({ ctx, input }) => {
+    .mutation(async ({ ctx, input }) => {
+      // 幂等：同一 clientId 已成功入库时直接返回已有记录（重发场景）
+      if (input.clientId) {
+        const existing = await ctx.db.log.findUnique({
+          where: { clientId: input.clientId },
+        });
+        if (existing) {
+          if (existing.userId !== ctx.session!.user.id) {
+            throw new TRPCError({ code: "FORBIDDEN" });
+          }
+          return existing;
+        }
+      }
       return ctx.db.log.create({
         data: {
           userId: ctx.session!.user.id,
@@ -177,6 +208,7 @@ export const logRouter = router({
           isTodo: input.isTodo ?? false,
           isTodoDone: false,
           parentId: input.parentId ?? null,
+          clientId: input.clientId ?? null,
         },
       });
     }),

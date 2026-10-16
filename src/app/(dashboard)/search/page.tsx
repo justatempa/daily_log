@@ -26,6 +26,13 @@ function fromDateInputValue(v: string): Date | undefined {
 }
 
 type QuickRange = "all" | "today" | "7d" | "30d" | "month";
+type TodoStatus = "all" | "done" | "undone";
+
+const TODO_STATUS_OPTIONS: { key: TodoStatus; label: string }[] = [
+  { key: "all", label: "所有" },
+  { key: "done", label: "已完成" },
+  { key: "undone", label: "未完成" },
+];
 
 function quickRangeToDates(range: QuickRange): {
   start: Date | undefined;
@@ -63,6 +70,7 @@ export default function SearchPage() {
   const [debouncedKeyword, setDebouncedKeyword] = useState("");
   const [selectedTags, setSelectedTags] = useState<SelectedTag[]>([]);
   const [quickRange, setQuickRange] = useState<QuickRange>("all");
+  const [todoStatus, setTodoStatus] = useState<TodoStatus>("all");
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [tagFiltersOpen, setTagFiltersOpen] = useState(true);
@@ -85,8 +93,9 @@ export default function SearchPage() {
       selectedTags: selectedTags.length > 0 ? selectedTags : undefined,
       startDate,
       endDate,
+      todoStatus,
     }),
-    [debouncedKeyword, selectedTags, startDate, endDate],
+    [debouncedKeyword, selectedTags, startDate, endDate, todoStatus],
   );
 
   const { data: results, isFetching } = api.log.search.useQuery(searchParams, {
@@ -160,6 +169,7 @@ export default function SearchPage() {
     setDebouncedKeyword("");
     setSelectedTags([]);
     setQuickRange("all");
+    setTodoStatus("all");
     setStartDate(undefined);
     setEndDate(undefined);
   };
@@ -167,6 +177,7 @@ export default function SearchPage() {
   const hasFilter =
     !!debouncedKeyword ||
     selectedTags.length > 0 ||
+    todoStatus !== "all" ||
     startDate !== undefined ||
     endDate !== undefined;
 
@@ -236,6 +247,30 @@ export default function SearchPage() {
             placeholder="输入内容关键字..."
             className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-indigo-500"
           />
+        </div>
+
+        {/* Todo 状态 */}
+        <div className="mt-4">
+          <p className="mb-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+            Todo 状态
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            {TODO_STATUS_OPTIONS.map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setTodoStatus(opt.key)}
+                aria-pressed={todoStatus === opt.key}
+                className={`rounded-full px-3 py-1 text-xs transition ${
+                  todoStatus === opt.key
+                    ? "bg-indigo-600 text-white shadow-sm"
+                    : "border border-slate-200 text-slate-500 hover:border-indigo-200 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-400 dark:hover:border-indigo-400 dark:hover:text-indigo-300"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* 时间范围 */}

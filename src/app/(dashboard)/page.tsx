@@ -19,6 +19,8 @@ import {
 
 type PendingLog = {
   id: string;
+  /** 幂等键：重发时复用同一 clientId，避免服务端重复插入 */
+  clientId: string;
   content: string;
   date: Date;
   tags: string;
@@ -36,6 +38,14 @@ function sameDay(a: Date, b: Date) {
 
 function newTempId() {
   return `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** 生成一次性的幂等键（重发时保持不变，用于服务端去重） */
+function newClientId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `cli-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export default function DashboardPage() {
@@ -135,6 +145,7 @@ export default function DashboardPage() {
         date: pending.date,
         tags: pending.tags,
         isTodo: pending.isTodo,
+        clientId: pending.clientId,
       },
       {
         onSuccess: (created) => {
@@ -183,6 +194,7 @@ export default function DashboardPage() {
     // 日志日期固定为「今天 + 当前时刻」，与日历选中的日期无关
     const pending: PendingLog = {
       id: newTempId(),
+      clientId: newClientId(),
       content: message.trim(),
       date: now,
       tags: serializeTagGroups(quickTags),
