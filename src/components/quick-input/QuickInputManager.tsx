@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type DragEvent } from "react";
 import { createPortal } from "react-dom";
 import { api } from "@/utils/api";
 
@@ -84,7 +84,25 @@ export default function QuickInputManager({
     onSuccess: invalidateList,
   });
 
-  const groups = useMemo(() => groupItems(data ?? []), [data]);
+  // 拖动排序状态：dragPreviewIds 非空时用它渲染预览顺序
+  const [dragState, setDragState] = useState<{
+    type: "category" | "tag";
+    id: string;
+  } | null>(null);
+  const [dragPreviewIds, setDragPreviewIds] = useState<string[] | null>(null);
+  const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
+
+  const orderedItems = useMemo(() => {
+    if (!data) return [];
+    if (!dragPreviewIds) return data;
+    const byId = new Map(data.map((item) => [item.id, item]));
+    return dragPreviewIds
+      .map((id) => byId.get(id))
+      .filter((item): item is QuickTagItem => Boolean(item));
+  }, [data, dragPreviewIds]);
+
+  // 渲染分组（拖动预览时按预览顺序）
+  const groups = useMemo(() => groupItems(orderedItems), [orderedItems]);
 
   // Esc 关闭
   useEffect(() => {
@@ -101,28 +119,69 @@ export default function QuickInputManager({
   // 直接 fixed 会以顶栏为包含块导致弹窗被顶到页面顶部且只显示一部分
   if (typeof document === "undefined") return null;
 
-  /** 标签在分类内上移/下移（不跨分类） */
-  const moveTag = (category: string, tagId: string, dir: -1 | 1) => {
-    const gi = groups.findIndex((g) => g.category === category);
-    if (gi < 0) return;
-    const tags = groups[gi].tags;
-    const ti = tags.findIndex((t) => t.id === tagId);
-    const target = ti + dir;
-    if (ti < 0 || target < 0 || target >= tags.length) return;
-    const next = groups.map((g) => ({ ...g, tags: [...g.tags] }));
-    const [moved] = next[gi].tags.splice(ti, 1);
-    next[gi].tags.splice(target, 0, moved);
-    reorderMutation.mutate({ ids: flattenIds(next) });
+  /** 开始拖动 */
+  const startDrag = (
+    event: DragEvent,
+    type: "category" | "tag",
+    id: string,
+  ) => {
+    event.dataTransfer.setData("text/plain", id);
+    event.dataTransfer.effectAllowed = "move";
+    setDragState({ type, id });
+    setDragPreviewIds(flattenIds(groupItems(data ?? [])));
   };
 
-  /** 整个分类上移/下移（连同其下全部标签） */
-  const moveCategory = (category: string, dir: -1 | 1) => {
-    const gi = groups.findIndex((g) => g.category === category);
-    const target = gi + dir;
-    if (gi < 0 || target < 0 || target >= groups.length) return;
-    const next = [...groups];
-    [next[gi], next[target]] = [next[target], next[gi]];
-    reorderMutation.mutate({ ids: flattenIds(next) });
+  /** 拖动结束（落空 / 取消 / 已松开） */
+  const endDrag = () => {
+    setDragState(null);
+    setDragPreviewIds(null);
+    setDragOverTarget(null);
+  };
+
+  /** 分类行拖过：把被拖分类整块移动到目标分类位置 */
+  const handleCategoryDragOver = (targetCategory: string) => {
+    if (!dragState || dragState.type !== "category") return;
+    if (dragState.id === targetCategory) return;
+    const current = groupItems(orderedItems);
+    const srcIdx = current.findIndex((g) => g.category === dragState.id);
+    const dstIdx = current.findIndex((g) => g.category === targetCategory);
+    if (srcIdx < 0 || dstIdx < 0) return;
+    const next = [...current];
+    const [moved] = next.splice(srcIdx, 1);
+    next.splice(srcIdx < dstIdx ? dstIdx - 1 : dstIdx, 0, moved);
+    setDragPreviewIds(flattenIds(next));
+    setDragOverTarget(targetCategory);
+  };
+
+  /** 标签行拖过：同一分类内调整位置（不跨分类） */
+  const handleTagDragOver = (targetCategory: string, targetId: string) => {
+    if (!dragState || dragState.type !== "tag") return;
+    if (dragState.id === targetId) return;
+    const current = groupItems(orderedItems);
+    const srcGi = current.findIndex((g) =>
+      g.tags.some((t) => t.id === dragState.id),
+    );
+    const dstGi = current.findIndex((g) => g.category === targetCategory);
+    if (srcGi < 0 || dstGi < 0 || srcGi !== dstGi) return;
+    const tags = current[dstGi].tags;
+    const srcIdx = tags.findIndex((t) => t.id === dragState.id);
+    const dstIdx = tags.findIndex((t) => t.id === targetId);
+    if (srcIdx < 0 || dstIdx < 0) return;
+    const next = current.map((g) => ({ ...g, tags: [...g.tags] }));
+    const [moved] = next[dstGi].tags.splice(srcIdx, 1);
+    next[dstGi].tags.splice(srcIdx < dstIdx ? dstIdx - 1 : dstIdx, 0, moved);
+    setDragPreviewIds(flattenIds(next));
+    setDragOverTarget(targetId);
+  };
+
+  /** 松开：提交当前预览顺序 */
+  const handleDrop = () => {
+    const preview = dragPreviewIds;
+    const original = flattenIds(groupItems(data ?? []));
+    endDrag();
+    if (preview && preview.join(",") !== original.join(",")) {
+      reorderMutation.mutate({ ids: preview });
+    }
   };
 
   const handleDeleteLabel = (tag: QuickTagItem, category: string) => {
@@ -183,9 +242,6 @@ export default function QuickInputManager({
     setLabelDraft("");
   };
 
-  const arrowBtn =
-    "flex h-4 w-4 items-center justify-center rounded text-slate-400 transition hover:bg-slate-100 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-slate-700 dark:hover:text-indigo-300";
-
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
@@ -226,7 +282,14 @@ export default function QuickInputManager({
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4">
+        <div
+          className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4"
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={(event) => {
+            event.preventDefault();
+            handleDrop();
+          }}
+        >
           {/* 新增 */}
           <div>
             <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -281,61 +344,50 @@ export default function QuickInputManager({
             </p>
           ) : (
             <div className="space-y-4">
-              {groups.map((group, gi) => (
+              {groups.map((group) => (
                 <div key={group.category}>
-                  {/* 分类行 */}
-                  <div className="flex items-center gap-1.5">
-                    <div className="flex flex-col items-center">
-                      <button
-                        type="button"
-                        disabled={reorderMutation.isLoading || gi === 0}
-                        onClick={() => moveCategory(group.category, -1)}
-                        aria-label={`分类 ${group.category} 上移`}
-                        title="分类上移"
-                        className={arrowBtn}
+                  {/* 分类行：拖动手柄拖动整个分类排序 */}
+                  <div
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      handleCategoryDragOver(group.category);
+                    }}
+                    className={`flex items-center gap-1.5 rounded-lg px-1 py-0.5 ${
+                      dragOverTarget === group.category
+                        ? "ring-2 ring-indigo-300 dark:ring-indigo-500"
+                        : ""
+                    }`}
+                  >
+                    <span
+                      draggable
+                      onDragStart={(event) =>
+                        startDrag(event, "category", group.category)
+                      }
+                      onDragEnd={endDrag}
+                      title="拖动排序"
+                      aria-label={`拖动排序分类 ${group.category}`}
+                      className={`cursor-grab text-slate-300 transition hover:text-indigo-500 dark:text-slate-500 dark:hover:text-indigo-300 ${
+                        dragState?.type === "category" &&
+                        dragState.id === group.category
+                          ? "opacity-40"
+                          : ""
+                      }`}
+                    >
+                      <svg
+                        className="h-4 w-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
                       >
-                        <svg
-                          className="h-3 w-3"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                          aria-hidden="true"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M5 15l7-7 7 7"
-                          />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        disabled={
-                          reorderMutation.isLoading ||
-                          gi === groups.length - 1
-                        }
-                        onClick={() => moveCategory(group.category, 1)}
-                        aria-label={`分类 ${group.category} 下移`}
-                        title="分类下移"
-                        className={arrowBtn}
-                      >
-                        <svg
-                          className="h-3 w-3"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                          aria-hidden="true"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 9l-7 7-7-7"
-                          />
-                        </svg>
-                      </button>
-                    </div>
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M7 20V4M17 20V4"
+                        />
+                      </svg>
+                    </span>
 
                     {renamingCategory === group.category ? (
                       <>
@@ -433,73 +485,52 @@ export default function QuickInputManager({
 
                   {/* 标签行 */}
                   <ul className="mt-2 space-y-1.5">
-                    {group.tags.map((tag, ti) => (
+                    {group.tags.map((tag) => (
                       <li
                         key={tag.id}
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                          handleTagDragOver(group.category, tag.id);
+                        }}
                         className={`flex items-center gap-1.5 rounded-lg border px-2 py-1.5 ${
                           tag.hidden
                             ? "border-slate-100 bg-slate-50 opacity-70 dark:border-slate-700/60 dark:bg-slate-800/60"
                             : "border-slate-100 bg-white dark:border-slate-700/60 dark:bg-slate-900/40"
+                        } ${
+                          dragOverTarget === tag.id
+                            ? "ring-2 ring-indigo-300 dark:ring-indigo-500"
+                            : ""
                         }`}
                       >
-                        <div className="flex flex-col items-center">
-                          <button
-                            type="button"
-                            disabled={
-                              reorderMutation.isLoading ||
-                              ti === 0
-                            }
-                            onClick={() =>
-                              moveTag(group.category, tag.id, -1)
-                            }
-                            aria-label={`标签 ${tag.label} 上移`}
-                            title="标签上移"
-                            className={arrowBtn}
+                        <span
+                          draggable
+                          onDragStart={(event) =>
+                            startDrag(event, "tag", tag.id)
+                          }
+                          onDragEnd={endDrag}
+                          title="拖动排序"
+                          aria-label={`拖动排序标签 ${tag.label}`}
+                          className={`cursor-grab text-slate-300 transition hover:text-indigo-500 dark:text-slate-500 dark:hover:text-indigo-300 ${
+                            dragState?.type === "tag" && dragState.id === tag.id
+                              ? "opacity-40"
+                              : ""
+                          }`}
+                        >
+                          <svg
+                            className="h-4 w-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            aria-hidden="true"
                           >
-                            <svg
-                              className="h-3 w-3"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                              aria-hidden="true"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M5 15l7-7 7 7"
-                              />
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            disabled={
-                              reorderMutation.isLoading ||
-                              ti === group.tags.length - 1
-                            }
-                            onClick={() =>
-                              moveTag(group.category, tag.id, 1)
-                            }
-                            aria-label={`标签 ${tag.label} 下移`}
-                            title="标签下移"
-                            className={arrowBtn}
-                          >
-                            <svg
-                              className="h-3 w-3"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                              aria-hidden="true"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M19 9l-7 7-7-7"
-                              />
-                            </svg>
-                          </button>
-                        </div>
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M7 20V4M17 20V4"
+                            />
+                          </svg>
+                        </span>
 
                         <button
                           type="button"
@@ -669,7 +700,7 @@ export default function QuickInputManager({
 
         <div className="border-t border-slate-100 px-4 py-2.5 dark:border-slate-700">
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            隐藏的标签不会在主页面显示；编辑、删除只影响快捷输入本身，不影响已添加的日志。
+            拖动左侧手柄可调整分类与标签顺序；隐藏的标签不会在主页面显示；编辑、删除只影响快捷输入本身，不影响已添加的日志。
           </p>
         </div>
       </div>
