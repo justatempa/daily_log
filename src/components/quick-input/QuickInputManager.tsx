@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { api } from "@/utils/api";
 
 type QuickTagItem = {
@@ -96,6 +97,9 @@ export default function QuickInputManager({
   }, [open, onClose]);
 
   if (!open) return null;
+  // 弹窗挂到 document.body：组件渲染在带 backdrop-blur 的顶栏内，
+  // 直接 fixed 会以顶栏为包含块导致弹窗被顶到页面顶部且只显示一部分
+  if (typeof document === "undefined") return null;
 
   /** 标签在分类内上移/下移（不跨分类） */
   const moveTag = (category: string, tagId: string, dir: -1 | 1) => {
@@ -182,7 +186,7 @@ export default function QuickInputManager({
   const arrowBtn =
     "flex h-4 w-4 items-center justify-center rounded text-slate-400 transition hover:bg-slate-100 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-slate-700 dark:hover:text-indigo-300";
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-black/50"
@@ -222,7 +226,7 @@ export default function QuickInputManager({
           </button>
         </div>
 
-        <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4">
           {/* 新增 */}
           <div>
             <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -669,6 +673,7 @@ export default function QuickInputManager({
           </p>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
