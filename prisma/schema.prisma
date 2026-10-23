@@ -50,6 +50,10 @@ model QuickTag {
   userId       String
   label        String
   categoryName String
+  /// 展示顺序：数值越小越靠前；由「快捷输入管理」中的排序操作维护
+  sortOrder    Int      @default(0)
+  /// 是否在主页面上隐藏（管理弹窗中仍可见，可随时取消隐藏）
+  hidden       Boolean  @default(false)
 
   createdAt DateTime @default(now())
 

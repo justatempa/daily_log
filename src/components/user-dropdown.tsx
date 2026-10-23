@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { api } from "@/utils/api";
+import QuickInputManager from "@/components/quick-input/QuickInputManager";
 
 export default function UserDropdown() {
   const { data: session } = useSession();
   const [open, setOpen] = useState(false);
+  const [quickManagerOpen, setQuickManagerOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [memosToken, setMemosToken] = useState("");
   const [apiToken, setApiToken] = useState("");
@@ -175,6 +177,25 @@ export default function UserDropdown() {
 
             <div>
               <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+                快捷输入
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  setQuickManagerOpen(true);
+                }}
+                className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 transition hover:border-indigo-200 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-300 dark:hover:border-indigo-400 dark:hover:text-indigo-300"
+              >
+                快捷输入管理
+              </button>
+              <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                新增、删除、排序、重命名、隐藏快捷标签
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
                 Memos Token
               </p>
               <label htmlFor="memos-token" className="sr-only">
@@ -314,6 +335,11 @@ export default function UserDropdown() {
           </div>
         </div>
       ) : null}
+
+      <QuickInputManager
+        open={quickManagerOpen}
+        onClose={() => setQuickManagerOpen(false)}
+      />
     </div>
   );
 }

@@ -215,6 +215,19 @@ export default function DashboardPage() {
     sendLog(pending);
   };
 
+  /** 取消选中某个快捷标签（不影响快捷标签本身，也不影响已发送日志） */
+  const removeQuickTag = (category: string, label: string) => {
+    setQuickTags((prev) =>
+      prev
+        .map((group) =>
+          group.category === category
+            ? { ...group, labels: group.labels.filter((l) => l !== label) }
+            : group,
+        )
+        .filter((group) => group.labels.length > 0),
+    );
+  };
+
   // 移动端底部输入框自适应高度
   const handleMobileMessageChange = (value: string) => {
     setMessage(value);
@@ -819,11 +832,33 @@ export default function DashboardPage() {
                 group.labels.map((label) => (
                   <span
                     key={`${group.category}-${label}`}
-                    className="rounded-full border border-indigo-600 bg-indigo-50 px-3 py-1 text-xs text-indigo-600 dark:border-indigo-400 dark:bg-indigo-500/15 dark:text-indigo-300"
+                    className="inline-flex items-center gap-1 rounded-full border border-indigo-600 bg-indigo-50 py-1 pl-3 pr-2 text-xs text-indigo-600 dark:border-indigo-400 dark:bg-indigo-500/15 dark:text-indigo-300"
                   >
                     {group.category}: {label}
+                    <button
+                      type="button"
+                      onClick={() => removeQuickTag(group.category, label)}
+                      aria-label={`取消选中 ${group.category}: ${label}`}
+                      title="取消选中"
+                      className="text-indigo-400 transition hover:text-rose-500 dark:text-indigo-300 dark:hover:text-rose-400"
+                    >
+                      <svg
+                        className="h-3 w-3"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
                   </span>
-                ))
+                )),
               )}
             </div>
           )}
@@ -875,11 +910,33 @@ export default function DashboardPage() {
                 group.labels.map((label) => (
                   <span
                     key={`${group.category}-${label}`}
-                    className="rounded-full border border-indigo-600 bg-indigo-50 px-2.5 py-0.5 text-[11px] text-indigo-600 dark:border-indigo-400 dark:bg-indigo-500/15 dark:text-indigo-300"
+                    className="inline-flex items-center gap-1 rounded-full border border-indigo-600 bg-indigo-50 py-0.5 pl-2.5 pr-1.5 text-[11px] text-indigo-600 dark:border-indigo-400 dark:bg-indigo-500/15 dark:text-indigo-300"
                   >
                     {group.category}: {label}
+                    <button
+                      type="button"
+                      onClick={() => removeQuickTag(group.category, label)}
+                      aria-label={`取消选中 ${group.category}: ${label}`}
+                      title="取消选中"
+                      className="text-indigo-400 transition hover:text-rose-500 dark:text-indigo-300 dark:hover:text-rose-400"
+                    >
+                      <svg
+                        className="h-2.5 w-2.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
                   </span>
-                ))
+                )),
               )}
             </div>
           )}

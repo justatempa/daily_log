@@ -107,7 +107,23 @@ const Timeline = forwardRef<TimelineHandle, {
   const replyInputRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const { data: availableTags } = api.quickTag.getGrouped.useQuery();
+  const { data: quickTags } = api.quickTag.list.useQuery();
+
+  // 快捷标签按分类分组（编辑标签弹层使用，只展示未隐藏的标签）
+  const groupedQuickTags = useMemo(() => {
+    const map = new Map<string, { id: string; label: string }[]>();
+    for (const item of quickTags ?? []) {
+      if (item.hidden) continue;
+      if (!map.has(item.categoryName)) {
+        map.set(item.categoryName, []);
+      }
+      map.get(item.categoryName)!.push({ id: item.id, label: item.label });
+    }
+    return Array.from(map.entries()).map(([category, labels]) => ({
+      category,
+      labels,
+    }));
+  }, [quickTags]);
 
   useImperativeHandle(
     ref,
@@ -509,37 +525,38 @@ const Timeline = forwardRef<TimelineHandle, {
                   点击标签进行选择或取消选择
                 </p>
                 <div className="mt-4 max-h-[400px] space-y-3 overflow-y-auto">
-                  {availableTags && Object.entries(availableTags).length > 0 ? (
-                    Object.entries(availableTags).map(([category, labels]) => (
+                  {groupedQuickTags.length > 0 ? (
+                    groupedQuickTags.map(({ category, labels }) => (
                       <div key={category}>
                         <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                           {category}
                         </p>
                         <div className="mt-2 flex flex-wrap gap-2">
-                          {labels.map((label) => {
+                          {labels.map((tag) => {
                             const isSelected = selectedTagsForEdit.some(
                               (item) =>
-                                item.category === category && item.label === label,
+                                item.category === category &&
+                                item.label === tag.label,
                             );
                             return (
                               <button
-                                key={`${category}-${label}`}
+                                key={tag.id}
                                 type="button"
                                 onClick={() => {
                                   setSelectedTagsForEdit((prev) => {
                                     const exists = prev.find(
                                       (item) =>
                                         item.category === category &&
-                                        item.label === label,
+                                        item.label === tag.label,
                                     );
                                     if (exists) {
                                       return prev.filter(
                                         (item) =>
                                           item.category !== category ||
-                                          item.label !== label,
+                                          item.label !== tag.label,
                                       );
                                     }
-                                    return [...prev, { category, label }];
+                                    return [...prev, { category, label: tag.label }];
                                   });
                                 }}
                                 aria-pressed={isSelected}
@@ -549,7 +566,7 @@ const Timeline = forwardRef<TimelineHandle, {
                                     : "border-slate-200 text-slate-500 hover:border-indigo-200 dark:border-slate-700 dark:text-slate-400 dark:hover:border-indigo-400"
                                 }`}
                               >
-                                {label}
+                                {tag.label}
                               </button>
                             );
                           })}

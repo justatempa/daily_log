@@ -1,6 +1,12 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useState,
+} from "react";
 import { api } from "@/utils/api";
 import { type TagGroup } from "@/utils/tags";
 
@@ -19,35 +25,46 @@ function tagsToSelected(groups: TagGroup[]): SelectedTag[] {
   );
 }
 
-const QuickInput = forwardRef<QuickInputHandle, {
-  onTagsChange: (tags: TagGroup[]) => void;
-  /**
-   * 受外部控制的已选标签（父组件的 quickTags）。
-   * 多个 QuickInput 实例（桌面侧栏 / 移动端弹层）共用同一份选中态，
-   * 任一实例的变化都会通过 onTagsChange 回写，再经本 effect 同步到全部实例。
-   */
-  initialSelected?: TagGroup[];
-}>(({ onTagsChange, initialSelected = [] }, ref) => {
-  const { data, isLoading } = api.quickTag.getGrouped.useQuery();
-  const utils = api.useUtils();
+function selectedToGroups(selected: SelectedTag[]): TagGroup[] {
+  const map = new Map<string, string[]>();
+  for (const item of selected) {
+    if (!map.has(item.category)) {
+      map.set(item.category, []);
+    }
+    map.get(item.category)?.push(item.label);
+  }
+  return Array.from(map.entries()).map(([category, labels]) => ({
+    category,
+    labels,
+  }));
+}
+
+/**
+ * 快捷输入面板：纯选择器。
+ * 新增 / 删除 / 重命名 / 排序 / 隐藏等管理操作统一在「用户菜单 → 快捷输入管理」弹窗中进行。
+ * 隐藏（hidden=true）的标签不在此处展示。
+ */
+const QuickInput = forwardRef<
+  QuickInputHandle,
+  {
+    onTagsChange: (tags: TagGroup[]) => void;
+    /**
+     * 受外部控制的已选标签（父组件的 quickTags）。
+     * 多个 QuickInput 实例（桌面侧栏 / 移动端弹层）共用同一份选中态，
+     * 任一实例的变化都会通过 onTagsChange 回写，再经本 effect 同步到全部实例。
+     */
+    initialSelected?: TagGroup[];
+  }
+>(({ onTagsChange, initialSelected = [] }, ref) => {
+  const { data, isLoading } = api.quickTag.list.useQuery();
   const [selected, setSelected] = useState<SelectedTag[]>(() =>
     tagsToSelected(initialSelected),
   );
-  const [newCategory, setNewCategory] = useState("");
-  const [newLabel, setNewLabel] = useState("");
 
   // 外部选中态变化（其他实例切换/发送后清空）时同步本实例的选中
   useEffect(() => {
     setSelected(tagsToSelected(initialSelected));
   }, [initialSelected]);
-
-  const addMutation = api.quickTag.add.useMutation({
-    onSuccess: async () => {
-      setNewCategory("");
-      setNewLabel("");
-      await utils.quickTag.getGrouped.invalidate();
-    },
-  });
 
   useImperativeHandle(ref, () => ({
     clearSelection: () => {
@@ -56,8 +73,21 @@ const QuickInput = forwardRef<QuickInputHandle, {
     },
   }));
 
-  const grouped = data ?? {};
-  const entries = Object.entries(grouped);
+  // 按分类分组（只展示未隐藏的标签），顺序沿用管理弹窗中的排序
+  const grouped = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const item of data ?? []) {
+      if (item.hidden) continue;
+      if (!map.has(item.categoryName)) {
+        map.set(item.categoryName, []);
+      }
+      map.get(item.categoryName)?.push(item.label);
+    }
+    return Array.from(map.entries()).map(([category, labels]) => ({
+      category,
+      labels,
+    }));
+  }, [data]);
 
   const toggleTag = (category: string, label: string) => {
     setSelected((prev) => {
@@ -71,19 +101,7 @@ const QuickInput = forwardRef<QuickInputHandle, {
         : [...prev, { category, label }];
 
       // 通知父组件标签变化
-      const map = new Map<string, string[]>();
-      for (const item of newSelected) {
-        if (!map.has(item.category)) {
-          map.set(item.category, []);
-        }
-        map.get(item.category)?.push(item.label);
-      }
-      const tagGroups = Array.from(map.entries()).map(([category, labels]) => ({
-        category,
-        labels,
-      }));
-      onTagsChange(tagGroups);
-
+      onTagsChange(selectedToGroups(newSelected));
       return newSelected;
     });
   };
@@ -107,12 +125,12 @@ const QuickInput = forwardRef<QuickInputHandle, {
           <p className="text-xs text-slate-500 dark:text-slate-400">
             标签加载中…
           </p>
-        ) : entries.length === 0 ? (
+        ) : grouped.length === 0 ? (
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            还没有标签，到下方添加一个吧。
+            还没有标签，可在右上角用户菜单的「快捷输入管理」中添加。
           </p>
         ) : (
-          entries.map(([category, labels]) => (
+          grouped.map(({ category, labels }) => (
             <div key={category}>
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                 {category}
@@ -143,47 +161,6 @@ const QuickInput = forwardRef<QuickInputHandle, {
             </div>
           ))
         )}
-      </div>
-
-      <div className="mt-4 border-t border-slate-100 pt-4 dark:border-slate-700">
-        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-          添加新标签
-        </p>
-        <div className="mt-2 flex gap-2">
-          <label htmlFor="new-category" className="sr-only">
-            分类名称
-          </label>
-          <input
-            id="new-category"
-            value={newCategory}
-            onChange={(event) => setNewCategory(event.target.value)}
-            placeholder="分类"
-            className="w-1/2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-indigo-500"
-          />
-          <label htmlFor="new-label" className="sr-only">
-            标签名称
-          </label>
-          <input
-            id="new-label"
-            value={newLabel}
-            onChange={(event) => setNewLabel(event.target.value)}
-            placeholder="标签"
-            className="w-1/2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-indigo-500"
-          />
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            if (!newCategory.trim() || !newLabel.trim()) return;
-            addMutation.mutate({
-              categoryName: newCategory.trim(),
-              label: newLabel.trim(),
-            });
-          }}
-          className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 transition hover:border-indigo-200 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-300 dark:hover:border-indigo-400 dark:hover:text-indigo-300"
-        >
-          添加
-        </button>
       </div>
     </section>
   );

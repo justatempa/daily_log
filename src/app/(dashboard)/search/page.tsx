@@ -9,8 +9,6 @@ import Timeline, {
 import { api } from "@/utils/api";
 import { useIsMobile } from "@/utils/use-media-query";
 
-type SelectedTag = { category: string; label: string };
-
 /** Date -> <input type="date"> 需要的 yyyy-mm-dd */
 function toDateInputValue(d: Date): string {
   const y = d.getFullYear();
@@ -68,12 +66,10 @@ export default function SearchPage() {
   const isMobile = useIsMobile();
   const [keyword, setKeyword] = useState("");
   const [debouncedKeyword, setDebouncedKeyword] = useState("");
-  const [selectedTags, setSelectedTags] = useState<SelectedTag[]>([]);
   const [quickRange, setQuickRange] = useState<QuickRange>("all");
   const [todoStatus, setTodoStatus] = useState<TodoStatus>("all");
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-  const [tagFiltersOpen, setTagFiltersOpen] = useState(true);
   const timelineRef = useRef<TimelineHandle | null>(null);
 
   const utils = api.useUtils();
@@ -84,18 +80,16 @@ export default function SearchPage() {
     return () => clearTimeout(t);
   }, [keyword]);
 
-  const { data: availableTags } = api.quickTag.getGrouped.useQuery();
   const { data: hashtags } = api.log.getHashtags.useQuery();
 
   const searchParams = useMemo(
     () => ({
       keyword: debouncedKeyword || undefined,
-      selectedTags: selectedTags.length > 0 ? selectedTags : undefined,
       startDate,
       endDate,
       todoStatus,
     }),
-    [debouncedKeyword, selectedTags, startDate, endDate, todoStatus],
+    [debouncedKeyword, startDate, endDate, todoStatus],
   );
 
   const { data: results, isFetching } = api.log.search.useQuery(searchParams, {
@@ -150,24 +144,9 @@ export default function SearchPage() {
     setEndDate(fromDateInputValue(v));
   };
 
-  const toggleTag = (category: string, label: string) => {
-    setSelectedTags((prev) => {
-      const exists = prev.some(
-        (item) => item.category === category && item.label === label,
-      );
-      if (exists) {
-        return prev.filter(
-          (item) => item.category !== category || item.label !== label,
-        );
-      }
-      return [...prev, { category, label }];
-    });
-  };
-
   const clearAll = () => {
     setKeyword("");
     setDebouncedKeyword("");
-    setSelectedTags([]);
     setQuickRange("all");
     setTodoStatus("all");
     setStartDate(undefined);
@@ -176,7 +155,6 @@ export default function SearchPage() {
 
   const hasFilter =
     !!debouncedKeyword ||
-    selectedTags.length > 0 ||
     todoStatus !== "all" ||
     startDate !== undefined ||
     endDate !== undefined;
@@ -355,80 +333,6 @@ export default function SearchPage() {
           </div>
         ) : null}
 
-        {/* 标签筛选：可折叠（移动端省屏，桌面端默认展开） */}
-        <div className="mt-4 border-t border-slate-100 pt-4 dark:border-slate-700">
-          <button
-            type="button"
-            onClick={() => setTagFiltersOpen((prev) => !prev)}
-            aria-expanded={tagFiltersOpen}
-            className="flex w-full items-center justify-between text-left"
-          >
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-              标签筛选
-              {selectedTags.length > 0 ? (
-                <span className="ml-2 text-indigo-600 dark:text-indigo-300">
-                  已选 {selectedTags.length} 个
-                </span>
-              ) : null}
-            </span>
-            <svg
-              className={`h-4 w-4 text-slate-400 transition-transform dark:text-slate-500 ${
-                tagFiltersOpen ? "rotate-180" : ""
-              }`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 9l-7 7-7-7"
-              />
-            </svg>
-          </button>
-          {tagFiltersOpen ? (
-            availableTags && Object.keys(availableTags).length > 0 ? (
-              <div className="mt-3 space-y-3">
-                {Object.entries(availableTags).map(([category, labels]) => (
-                  <div key={category}>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {category}
-                    </p>
-                    <div className="mt-1.5 flex flex-wrap gap-2">
-                      {labels.map((label) => {
-                        const isSelected = selectedTags.some(
-                          (item) =>
-                            item.category === category && item.label === label,
-                        );
-                        return (
-                          <button
-                            key={`${category}-${label}`}
-                            type="button"
-                            onClick={() => toggleTag(category, label)}
-                            aria-pressed={isSelected}
-                            className={`rounded-full border px-3 py-1 text-xs transition ${
-                              isSelected
-                                ? "border-indigo-600 bg-indigo-50 text-indigo-600 dark:border-indigo-400 dark:bg-indigo-500/15 dark:text-indigo-300"
-                                : "border-slate-200 text-slate-500 hover:border-indigo-200 dark:border-slate-700 dark:text-slate-400 dark:hover:border-indigo-400"
-                            }`}
-                          >
-                            {category}: {label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-                暂无标签，可先在仪表盘的快捷输入中添加
-              </p>
-            )
-          ) : null}
-        </div>
       </section>
 
       {/* 结果统计 */}
