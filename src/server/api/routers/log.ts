@@ -21,9 +21,14 @@ export const logRouter = router({
         endDate: z.date().optional(),
         /** all=全部（不过滤），done=已完成待办，undone=未完成待办 */
         todoStatus: z.enum(["all", "done", "undone"]).optional(),
+        page: z.number().int().min(1).optional().default(1),
+        pageSize: z.number().int().min(1).max(100).optional().default(20),
       }),
     )
     .query(async ({ ctx, input }) => {
+      const page = input.page ?? 1;
+      const pageSize = input.pageSize ?? 20;
+
       const where: {
         userId: string;
         parentId: null;
@@ -63,29 +68,110 @@ export const logRouter = router({
         where.isTodoDone = false;
       }
 
-      const logs = await ctx.db.log.findMany({
-        where,
-        orderBy: { date: "desc" },
-        include: {
-          replies: { orderBy: { createdAt: "asc" } },
-        },
-      });
-
-      // tags 列存的是 JSON 字符串，SQL 层无法直接过滤，这里在内存中做 AND 匹配：
-      // 选中多个标签时，日志必须同时包含全部标签（与关键字/时间/Todo 状态为 AND 关系）
       const selected = input.selectedTags ?? [];
+
       if (selected.length > 0) {
-        return logs.filter((log) => {
-          const groups = parseTagGroups(log.tags);
-          return selected.every((sel) => {
-            const group = groups.find((g) => g.category === sel.category);
-            if (!group) return false;
-            return group.labels.includes(sel.label);
-          });
+        // 多选是或逻辑：包含任意一个选中快捷标签即匹配
+        const candidates = await ctx.db.log.findMany({
+          where,
+          orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+          select: { id: true, tags: true },
         });
+
+        const matchedIds = candidates
+          .filter((log) => {
+            const groups = parseTagGroups(log.tags);
+            return selected.some((sel) => {
+              const group = groups.find(
+                (g) => g.category.trim() === sel.category.trim(),
+              );
+              return group ? group.labels.includes(sel.label.trim()) : false;
+            });
+          })
+          .map((log) => log.id);
+
+        const total = matchedIds.length;
+        const totalPages = total === 0 ? 1 : Math.ceil(total / pageSize);
+        const currentPage = Math.min(Math.max(1, page), totalPages);
+        const pageIds = matchedIds.slice(
+          (currentPage - 1) * pageSize,
+          currentPage * pageSize,
+        );
+
+        let items: Array<{
+          id: string;
+          userId: string;
+          clientId: string | null;
+          content: string;
+          date: Date;
+          tags: string;
+          isTodo: boolean;
+          isTodoDone: boolean;
+          parentId: string | null;
+          createdAt: Date;
+          updatedAt: Date;
+          replies: Array<{
+            id: string;
+            userId: string;
+            clientId: string | null;
+            content: string;
+            date: Date;
+            tags: string;
+            isTodo: boolean;
+            isTodoDone: boolean;
+            parentId: string | null;
+            createdAt: Date;
+            updatedAt: Date;
+          }>;
+        }> = [];
+
+        if (pageIds.length > 0) {
+          const fetchedItems = await ctx.db.log.findMany({
+            where: { id: { in: pageIds } },
+            include: {
+              replies: { orderBy: { createdAt: "asc" } },
+            },
+          });
+          const itemMap = new Map(fetchedItems.map((item) => [item.id, item]));
+          items = pageIds
+            .map((id) => itemMap.get(id))
+            .filter((item): item is NonNullable<typeof item> => Boolean(item));
+        }
+
+        return {
+          items,
+          total,
+          page: currentPage,
+          pageSize,
+          totalPages,
+        };
       }
 
-      return logs;
+      // 未选快捷标签时，由数据库原生分页
+      const total = await ctx.db.log.count({ where });
+      const totalPages = total === 0 ? 1 : Math.ceil(total / pageSize);
+      const currentPage = Math.min(Math.max(1, page), totalPages);
+
+      const items =
+        total === 0
+          ? []
+          : await ctx.db.log.findMany({
+              where,
+              orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+              skip: (currentPage - 1) * pageSize,
+              take: pageSize,
+              include: {
+                replies: { orderBy: { createdAt: "asc" } },
+              },
+            });
+
+      return {
+        items,
+        total,
+        page: currentPage,
+        pageSize,
+        totalPages,
+      };
     }),
   /**
    * 获取某天的日志。start/end 由客户端按「本地时区」给出

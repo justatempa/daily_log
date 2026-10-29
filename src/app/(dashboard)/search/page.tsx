@@ -6,6 +6,10 @@ import Timeline, {
   type LogItem,
   type TimelineHandle,
 } from "@/components/timeline/Timeline";
+import Pagination from "@/components/Pagination";
+import QuickTagFilter, {
+  type SelectedTag,
+} from "@/components/quick-input/QuickTagFilter";
 import { api } from "@/utils/api";
 import { useIsMobile } from "@/utils/use-media-query";
 
@@ -70,6 +74,9 @@ export default function SearchPage() {
   const [todoStatus, setTodoStatus] = useState<TodoStatus>("all");
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+  const [selectedTags, setSelectedTags] = useState<SelectedTag[]>([]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const timelineRef = useRef<TimelineHandle | null>(null);
 
   const utils = api.useUtils();
@@ -80,6 +87,11 @@ export default function SearchPage() {
     return () => clearTimeout(t);
   }, [keyword]);
 
+  // 当筛选条件发生变化时，自动将页码重置为第 1 页
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedKeyword, quickRange, todoStatus, startDate, endDate, selectedTags]);
+
   const { data: hashtags } = api.log.getHashtags.useQuery();
 
   const searchParams = useMemo(
@@ -88,14 +100,27 @@ export default function SearchPage() {
       startDate,
       endDate,
       todoStatus,
+      selectedTags: selectedTags.length > 0 ? selectedTags : undefined,
+      page,
+      pageSize,
     }),
-    [debouncedKeyword, startDate, endDate, todoStatus],
+    [debouncedKeyword, startDate, endDate, todoStatus, selectedTags, page, pageSize],
   );
 
   const { data: results, isFetching } = api.log.search.useQuery(searchParams, {
     // 条件变化时自动重新查询
     keepPreviousData: true,
   });
+
+  const total = results?.total ?? 0;
+  const totalPages = results?.totalPages ?? 1;
+
+  // 若服务端总页数变化且当前页码超出总页数，同步调整到最后一页
+  useEffect(() => {
+    if (results?.totalPages && page > results.totalPages) {
+      setPage(results.totalPages);
+    }
+  }, [results?.totalPages, page]);
 
   const toggleTodo = api.log.toggleTodo.useMutation({
     onSuccess: () => utils.log.search.invalidate(),
@@ -112,7 +137,7 @@ export default function SearchPage() {
 
   const logs: LogItem[] = useMemo(
     () =>
-      (results ?? []).map((log) => ({
+      (results?.items ?? []).map((log) => ({
         id: log.id,
         content: log.content,
         date: new Date(log.date),
@@ -125,7 +150,7 @@ export default function SearchPage() {
           date: new Date(r.date),
         })),
       })),
-    [results],
+    [results?.items],
   );
 
   const handleQuickRange = (range: QuickRange) => {
@@ -144,6 +169,21 @@ export default function SearchPage() {
     setEndDate(fromDateInputValue(v));
   };
 
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    if (timelineRef.current) {
+      timelineRef.current.scrollToTop();
+    }
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setPage(1);
+  };
+
   const clearAll = () => {
     setKeyword("");
     setDebouncedKeyword("");
@@ -151,13 +191,16 @@ export default function SearchPage() {
     setTodoStatus("all");
     setStartDate(undefined);
     setEndDate(undefined);
+    setSelectedTags([]);
+    setPage(1);
   };
 
   const hasFilter =
     !!debouncedKeyword ||
     todoStatus !== "all" ||
     startDate !== undefined ||
-    endDate !== undefined;
+    endDate !== undefined ||
+    selectedTags.length > 0;
 
   return (
     <div className="space-y-6">
@@ -224,6 +267,14 @@ export default function SearchPage() {
             onChange={(e) => setKeyword(e.target.value)}
             placeholder="输入内容关键字..."
             className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-indigo-500"
+          />
+        </div>
+
+        {/* 快捷输入筛选（隐藏式，可多选，或逻辑） */}
+        <div className="mt-4 border-t border-slate-100 pt-4 dark:border-slate-700/60">
+          <QuickTagFilter
+            selectedTags={selectedTags}
+            onChange={setSelectedTags}
           />
         </div>
 
@@ -338,33 +389,49 @@ export default function SearchPage() {
       {/* 结果统计 */}
       <div className="flex items-center justify-between px-1 text-xs text-slate-500 dark:text-slate-400">
         <span>
-          {isFetching ? "搜索中..." : `共 ${logs.length} 条结果`}
+          {isFetching ? "搜索中..." : `共 ${total} 条结果`}
+          {total > 0 && !isFetching && (
+            <span className="ml-2 text-slate-400 dark:text-slate-500">
+              (第 {page} / {totalPages} 页)
+            </span>
+          )}
         </span>
       </div>
 
       {/* 结果列表 */}
       {logs.length > 0 ? (
-        <Timeline
-          ref={timelineRef}
-          logs={logs}
-          reverseSort
-          showDate
-          scrollable={!isMobile}
-          onToggleTodo={(id) => toggleTodo.mutate({ id })}
-          onDelete={(id) => deleteLog.mutate({ id })}
-          onUpdate={(id, content) => updateLog.mutate({ id, content })}
-          onUpdateTags={(id, tags) => updateLog.mutate({ id, tags })}
-          onAddReply={(id, content) =>
-            addLog.mutate({
-              content,
-              date: new Date(),
-              parentId: id,
-              tags: "",
-            })
-          }
-          onResend={() => {}}
-          scrollToBottomKey={0}
-        />
+        <div className="space-y-4">
+          <Timeline
+            ref={timelineRef}
+            logs={logs}
+            reverseSort
+            showDate
+            scrollable={!isMobile}
+            onToggleTodo={(id) => toggleTodo.mutate({ id })}
+            onDelete={(id) => deleteLog.mutate({ id })}
+            onUpdate={(id, content) => updateLog.mutate({ id, content })}
+            onUpdateTags={(id, tags) => updateLog.mutate({ id, tags })}
+            onAddReply={(id, content) =>
+              addLog.mutate({
+                content,
+                date: new Date(),
+                parentId: id,
+                tags: "",
+              })
+            }
+            onResend={() => {}}
+            scrollToBottomKey={0}
+          />
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+            onPageSizeChange={handlePageSizeChange}
+            isFetching={isFetching}
+          />
+        </div>
       ) : (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center text-slate-500 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-400">
           <p className="text-sm uppercase tracking-[0.3em]">
