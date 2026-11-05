@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/utils/api";
 
 const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
@@ -30,16 +30,29 @@ function toISODate(date: Date) {
 export default function Calendar({
   selectedDate,
   onSelectDate,
+  onMonthChange,
 }: {
   selectedDate: Date;
   onSelectDate: (date: Date) => void;
+  /** 展示月份变化时回调（传月份起始 Date），用于联动外部组件（如字数统计） */
+  onMonthChange?: (monthStart: Date) => void;
 }) {
   const [currentMonth, setCurrentMonth] = useState(startOfMonth(selectedDate));
+
+  // 用 ref 保存回调：调用方若传内联函数，避免因引用变化反复触发 effect
+  const onMonthChangeRef = useRef(onMonthChange);
+  useEffect(() => {
+    onMonthChangeRef.current = onMonthChange;
+  }, [onMonthChange]);
 
   // 选中日期变化（如发送日志后跳回今天）时，日历跟随切到对应月份
   useEffect(() => {
     setCurrentMonth(startOfMonth(selectedDate));
   }, [selectedDate]);
+  // 展示月份变化时通知外部（含初次挂载）
+  useEffect(() => {
+    onMonthChangeRef.current?.(currentMonth);
+  }, [currentMonth]);
   // year/month 用浏览器本地时区，避免服务器时区导致月份错位；
   // 返回的是日志时间戳，在本地时区换算成「日」并严格过滤到当前月
   const { data: monthLogDates = [] } = api.log.getMonthDays.useQuery({

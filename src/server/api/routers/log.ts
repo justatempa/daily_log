@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, router } from "@/server/api/trpc";
 import { parseTagGroups } from "@/utils/tags";
+import { countWords } from "@/utils/wordCount";
 
 export const logRouter = router({
   getAll: protectedProcedure.query(({ ctx }) => {
@@ -216,6 +217,27 @@ export const logRouter = router({
         select: { date: true },
       });
       return logs.map((log) => log.date);
+    }),
+  /**
+   * 按天统计字数：返回 [start, end) 区间内每条日志/评论的 { date, count }，
+   * 由客户端按本地时区归组到「日」。start/end 由客户端按本地时区给出
+   * （start=区间首日 00:00，end=区间次日 00:00），服务端不做时区换算，
+   * 与 getByDate 保持一致。
+   */
+  getStats: protectedProcedure
+    .input(z.object({ start: z.date(), end: z.date() }))
+    .query(async ({ ctx, input }) => {
+      const logs = await ctx.db.log.findMany({
+        where: {
+          userId: ctx.session!.user.id,
+          date: { gte: input.start, lt: input.end },
+        },
+        select: { date: true, content: true },
+      });
+      return logs.map((log) => ({
+        date: log.date,
+        count: countWords(log.content),
+      }));
     }),
   getReplies: protectedProcedure
     .input(z.object({ logId: z.string() }))

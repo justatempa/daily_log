@@ -8,8 +8,10 @@ import Timeline, {
   type TimelineHandle,
 } from "@/components/timeline/Timeline";
 import QuickInput, { type QuickInputHandle } from "@/components/quick-input/QuickInput";
+import WordCountStats from "@/components/stats/WordCountStats";
 import { api } from "@/utils/api";
 import { useIsMobile } from "@/utils/use-media-query";
+import { countWords } from "@/utils/wordCount";
 import {
   formatTagGroups,
   parseTagGroups,
@@ -63,6 +65,8 @@ export default function DashboardPage() {
   // 移动端：日历 / 标签面板默认隐藏，按钮触发
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false);
+  // 字数统计卡片展示的月份（跟随日历翻页，初始为今天所在月）
+  const [statsMonth, setStatsMonth] = useState(() => new Date());
   const timelineRef = useRef<TimelineHandle | null>(null);
   const quickInputRef = useRef<QuickInputHandle | null>(null);
   const mobileInputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -271,6 +275,35 @@ export default function DashboardPage() {
     return logs;
   }, [filter, logsQuery.data, pendingLogs, selectedDate]);
 
+  /**
+   * 所选日期当天的有效字数：按每条日志/评论自身 date 归属到「日」
+   * （与 getStats 统计口径一致）；本地乐观条目（发送中/失败重发）也计入，
+   * 保证发送日志或评论后数字立即更新。
+   */
+  const dayWordCount = useMemo(() => {
+    const start = dayRange.start.getTime();
+    const end = dayRange.end.getTime();
+    let total = 0;
+    for (const log of logsQuery.data ?? []) {
+      const logTime = log.date.getTime();
+      if (logTime >= start && logTime < end) {
+        total += countWords(log.content);
+      }
+      for (const reply of log.replies ?? []) {
+        const replyTime = reply.date.getTime();
+        if (replyTime >= start && replyTime < end) {
+          total += countWords(reply.content);
+        }
+      }
+    }
+    for (const pending of pendingLogs) {
+      if (sameDay(pending.date, selectedDate)) {
+        total += countWords(pending.content);
+      }
+    }
+    return total;
+  }, [logsQuery.data, pendingLogs, selectedDate, dayRange]);
+
   const memosApiUrl = process.env.NEXT_PUBLIC_MEMOS_API_URL ?? "";
 
   const onCopyLogs = async () => {
@@ -398,7 +431,9 @@ export default function DashboardPage() {
               </h2>
             </section>
             <div className="flex flex-col items-end gap-2 text-xs text-slate-500 dark:text-slate-400">
-              <span>{logsQuery.data?.length ?? 0} 条记录</span>
+              <span>
+                {logsQuery.data?.length ?? 0} 条记录 · {dayWordCount} 字
+              </span>
               <button
                 type="button"
                 onClick={onSaveToMemos}
@@ -581,7 +616,9 @@ export default function DashboardPage() {
           <Calendar
             selectedDate={selectedDate}
             onSelectDate={(date) => setSelectedDate(date)}
+            onMonthChange={setStatsMonth}
           />
+          <WordCountStats monthDate={statsMonth} />
           <QuickInput
             ref={quickInputRef}
             initialSelected={quickTags}
@@ -777,7 +814,11 @@ export default function DashboardPage() {
                 setSelectedDate(date);
                 setCalendarOpen(false);
               }}
+              onMonthChange={setStatsMonth}
             />
+            <div className="mt-4">
+              <WordCountStats monthDate={statsMonth} />
+            </div>
             <button
               type="button"
               onClick={() => setCalendarOpen(false)}
