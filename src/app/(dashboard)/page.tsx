@@ -618,12 +618,12 @@ export default function DashboardPage() {
             onSelectDate={(date) => setSelectedDate(date)}
             onMonthChange={setStatsMonth}
           />
-          <WordCountStats monthDate={statsMonth} />
           <QuickInput
             ref={quickInputRef}
             initialSelected={quickTags}
             onTagsChange={setQuickTags}
           />
+          <WordCountStats monthDate={statsMonth} />
         </div>
       </section>
 
