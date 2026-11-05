@@ -30,9 +30,9 @@ jobs:
       - name: Upload image archive to server
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: 104.225.159.103
+          host: 124.70.155.206
           username: root
-          port: 28022
+          port: 22
           key: ${{ secrets.SSH_KEY }}
           source: daily-log-image.tar.gz
           target: /tmp
@@ -40,9 +40,9 @@ jobs:
       - name: Load image and restart container on server
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: 104.225.159.103
+          host: 124.70.155.206
           username: root
-          port: 28022
+          port: 22
           key: ${{ secrets.SSH_KEY }}
           script: |
             set -euo pipefail
@@ -50,14 +50,14 @@ jobs:
             APP_NAME="daily-log"
             APP_DIR="/opt/daily-log"
             IMAGE_ARCHIVE="/tmp/daily-log-image.tar.gz"
-            PORT=9999
+            PORT=13003
 
             mkdir -p "$APP_DIR"
 
             if [ ! -f "$APP_DIR/.env" ]; then
               printf '%s\n' \
                 'NEXTAUTH_SECRET=change-me' \
-                'NEXTAUTH_URL=http://104.225.159.103:9999' \
+                'NEXTAUTH_URL=http://124.70.155.206:13003' \
                 'DATABASE_URL=file:/app/db.sqlite' \
                 > "$APP_DIR/.env"
             fi

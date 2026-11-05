@@ -3,14 +3,14 @@ set -euo pipefail
 
 APP_NAME="daily-log"
 IMAGE_NAME="daily-log"
-PORT=9999
+PORT=13003
 DB_FILE="db.sqlite"
 ENV_FILE=".env"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   cat > "$ENV_FILE" <<'EOF'
 NEXTAUTH_SECRET=change-me
-NEXTAUTH_URL=http://localhost:9999
+NEXTAUTH_URL=http://localhost:13003
 DATABASE_URL=file:/app/db.sqlite
 EOF
   echo "Created .env template. Please fill in NEXTAUTH_SECRET and NEXTAUTH_URL, then rerun."

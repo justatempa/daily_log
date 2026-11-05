@@ -22,7 +22,7 @@ RUN apk add --no-cache openssl \
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV PORT=9999
+ENV PORT=13003
 ENV HOSTNAME=0.0.0.0
 
 COPY --from=builder /app/.next/standalone ./
@@ -32,5 +32,5 @@ COPY --from=builder /app/public ./public
 RUN chown -R nextjs:nodejs /app
 
 USER nextjs
-EXPOSE 9999
+EXPOSE 13003
 CMD ["node","server.js"]
