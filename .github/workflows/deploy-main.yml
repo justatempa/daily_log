@@ -84,3 +84,11 @@ jobs:
               daily-log:latest
 
             rm -f "$IMAGE_ARCHIVE"
+
+      - name: Notify iOS via Bark
+        uses: harryzcy/action-bark@v2.4.0
+        with:
+          status: ${{ job.status }}
+          device_key: ${{ secrets.BARK_DEVICE_KEY }}
+          bark_server_url: ${{ secrets.BARK_SERVER_URL }}
+        if: always() # 无论成功/失败/取消都推送，pick up events even if the job fails or is canceled
