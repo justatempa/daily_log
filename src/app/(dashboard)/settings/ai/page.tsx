@@ -730,7 +730,7 @@ export default function AiSettingsPage() {
           生成某天的总结
         </h2>
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          结果会作为一条日志插入所选当天 23:59，并带 #AI总结 标签；总结时不会把带 #AI总结 的日志算进去，重新生成会替换当天已有的 AI 总结。
+          结果会作为一条日志插入所选当天 23:59，并带 #AI总结 标签；总结时不会把带 #AI总结 的日志算进去，重新生成会替换当天已有的 AI 总结。也可以在上方调用历史里对某天点「重新生成这天」。
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <input

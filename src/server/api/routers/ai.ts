@@ -226,49 +226,73 @@ export const aiRouter = router({
       return { ok: true };
     }),
 
-  /** 调用历史（按时间倒序，客户端按 runId 分组展示；cursor 为页码） */
+  /** 调用历史：按「一次总结」分页，避免同一次总结的多个提供商尝试被拆到两页 */
   history: aiProcedure
     .input(
       z.object({
-        cursor: z.number().int().min(1).optional(),
-        pageSize: z.number().int().min(1).max(50).optional().default(20),
+        page: z.number().int().min(1).optional().default(1),
+        pageSize: z.number().int().min(1).max(50).optional().default(10),
       }),
     )
     .query(async ({ ctx, input }) => {
       const userId = ctx.session!.user.id;
-      const page = input.cursor ?? 1;
-      const pageSize = input.pageSize ?? 20;
+      const page = input.page ?? 1;
+      const pageSize = input.pageSize ?? 10;
       const where = { userId };
 
-      const [total, items] = await Promise.all([
-        ctx.db.aiCallLog.count({ where }),
-        ctx.db.aiCallLog.findMany({
+      const [runGroups, totalRows] = await Promise.all([
+        ctx.db.aiCallLog.groupBy({
+          by: ["runId"],
           where,
-          orderBy: { createdAt: "desc" },
+          _max: { createdAt: true },
+          _count: { _all: true },
+          orderBy: { _max: { createdAt: "desc" } },
           skip: (page - 1) * pageSize,
           take: pageSize,
-          select: {
-            id: true,
-            runId: true,
-            targetDay: true,
-            trigger: true,
-            providerName: true,
-            model: true,
-            status: true,
-            error: true,
-            content: true,
-            inputChars: true,
-            durationMs: true,
-            createdAt: true,
-          },
         }),
+        ctx.db.$queryRaw<Array<{ total: number | bigint }>>`
+          SELECT COUNT(DISTINCT "runId") AS "total"
+          FROM "AiCallLog"
+          WHERE "userId" = ${userId}
+        `,
       ]);
 
+      const total = Number(totalRows[0]?.total ?? 0);
+      const runIds = runGroups.map((group) => group.runId);
+
+      const items =
+        runIds.length === 0
+          ? []
+          : await ctx.db.aiCallLog.findMany({
+              where: { userId, runId: { in: runIds } },
+              orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+              select: {
+                id: true,
+                runId: true,
+                targetDay: true,
+                trigger: true,
+                providerName: true,
+                model: true,
+                status: true,
+                error: true,
+                content: true,
+                inputChars: true,
+                durationMs: true,
+                createdAt: true,
+              },
+            });
+
       return {
-        items,
+        runs: runGroups.map((group) => ({
+          runId: group.runId,
+          createdAt: group._max.createdAt,
+          attemptCount: group._count._all,
+          items: items.filter((item) => item.runId === group.runId),
+        })),
         total,
         page,
         pageSize,
+        totalPages: Math.max(1, Math.ceil(total / pageSize)),
         hasMore: page * pageSize < total,
       };
     }),

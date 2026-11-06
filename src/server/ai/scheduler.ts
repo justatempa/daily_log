@@ -5,6 +5,7 @@ import {
   isValidTimeZone,
   toZonedDayString,
 } from "@/utils/datetime";
+import { notifyAutoSummaryBark } from "./bark";
 import {
   DEFAULT_TIMEZONE,
   DEFAULT_SCHEDULE_HOUR,
@@ -119,6 +120,12 @@ async function tick(): Promise<void> {
           userId: user.id,
           targetDay,
           provider: result.providerName,
+          durationMs: result.durationMs,
+        });
+        await notifyAutoSummaryBark({
+          day: targetDay,
+          providerName: result.providerName,
+          content: result.content,
           durationMs: result.durationMs,
         });
       } catch (error) {

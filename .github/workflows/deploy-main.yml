@@ -80,15 +80,63 @@ jobs:
               --restart unless-stopped \
               -p "${PORT}:${PORT}" \
               -v "$APP_DIR/db.sqlite:/app/db.sqlite" \
+              -e BARK_SERVER_URL="${{ secrets.BARK_SERVER_URL }}" \
+              -e BARK_DEVICE_KEY="${{ secrets.BARK_DEVICE_KEY }}" \
               --env-file "$APP_DIR/.env" \
               daily-log:latest
 
             rm -f "$IMAGE_ARCHIVE"
 
+      - name: Build Bark notification message
+        id: bark_message
+        if: always()
+        shell: bash
+        env:
+          JOB_STATUS: ${{ job.status }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
+          RUN_NUMBER: ${{ github.run_number }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          case "$JOB_STATUS" in
+            success) TITLE="daily_log 部署成功" ;;
+            failure) TITLE="daily_log 部署失败" ;;
+            cancelled) TITLE="daily_log 部署已取消" ;;
+            *) TITLE="daily_log 部署：$JOB_STATUS" ;;
+          esac
+
+          SHORT_SHA="${SHA:0:7}"
+          COMMIT_SUBJECT=$(printf '%s' "$COMMIT_MESSAGE" | head -n 1)
+          NOW=$(TZ=Asia/Shanghai date '+%Y-%m-%d %H:%M:%S')
+
+          BODY=$(printf '%s\n' \
+            "仓库：$REPO" \
+            "分支：$BRANCH" \
+            "提交：$SHORT_SHA" \
+            "触发：$ACTOR" \
+            "运行：#$RUN_NUMBER" \
+            "时间：$NOW")
+          if [ -n "$COMMIT_SUBJECT" ]; then
+            BODY="$BODY"$'\n'"说明：$COMMIT_SUBJECT"
+          fi
+
+          {
+            printf 'title=%s\n' "$TITLE"
+            printf 'body<<BARK_BODY_7d1e4c\n'
+            printf '%s\n' "$BODY"
+            printf 'BARK_BODY_7d1e4c\n'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Notify iOS via Bark
         uses: harryzcy/action-bark@v2.4.0
         with:
           status: ${{ job.status }}
+          title: ${{ steps.bark_message.outputs.title || 'daily_log 部署通知' }}
+          body: ${{ steps.bark_message.outputs.body || '通知内容生成失败，请查看 GitHub Actions 运行详情。' }}
+          group: github
+          url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           device_key: ${{ secrets.BARK_DEVICE_KEY }}
           bark_server_url: ${{ secrets.BARK_SERVER_URL }}
         if: always() # 无论成功/失败/取消都推送，pick up events even if the job fails or is canceled

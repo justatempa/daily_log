@@ -305,10 +305,11 @@ src/
 
 * 每天 00:30（按用户配置的时区）自动总结「前一天」的日志。
 * 主页标题右侧 / 移动端工具栏「AI 总结」按钮：总结日历当前选中的日期。
-* 配置页 `/settings/ai`：可对任意日期手动生成。
+* 配置页 `/settings/ai`：可对任意日期手动生成；调用历史按每次总结分页（每页 10 组），可直接对某天「重新生成这天」。
 * 结果写成被总结当天 `23:59` 的一条日志，内容末尾带 `#AI总结`；`Log.source = "AI_SUMMARY"`。
 * 重新总结会先删除当天 `source=AI_SUMMARY` 的日志再插入，且收集输入时排除所有内容含 `#AI总结` 的日志与评论（不会自我总结）。
 * 多个提供商按添加顺序 fallback，单个失败继续下一个；全部失败抛出 `ALL_FAILED`，不写总结日志。
+* 自动总结成功后通过 Bark 推送（分组 `daily-log`），手动生成不推送；正文只放提供商、耗时和摘要开头，控制在 200 字内，避免 iOS 通知截断。
 
 ### 9.2 数据模型
 
@@ -327,6 +328,7 @@ src/server/ai/
 ├── default-prompt.ts  # 默认提示词 + buildPrompt（缺占位符自动补齐）
 ├── providers.ts       # OpenAI 兼容地址归一化 + 带超时的 fetch 调用
 ├── summary.ts         # summarizeDay / testAiProvider / AiSummaryError
+├── bark.ts            # 自动总结完成后的 Bark 推送（group=daily-log）
 ├── scheduler.ts       # 60s tick，按用户时区判断是否到点
 └── ensure-schema.ts   # 幂等建表 / Log.source 补列
 src/instrumentation.ts # Node 启动时 ensure + startAiSummaryScheduler
