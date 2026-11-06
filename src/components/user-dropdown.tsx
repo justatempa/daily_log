@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
 import { api } from "@/utils/api";
 import QuickInputManager from "@/components/quick-input/QuickInputManager";
@@ -134,7 +135,7 @@ export default function UserDropdown() {
       </button>
 
       {open ? (
-        <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-slate-200 bg-white p-4 text-sm shadow-lg dark:border-slate-700 dark:bg-slate-800">
+        <div className="absolute right-0 mt-2 max-h-[calc(100vh-5rem)] w-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 text-sm shadow-lg dark:border-slate-700 dark:bg-slate-800">
           <div className="space-y-3">
             <div>
               <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
@@ -191,6 +192,22 @@ export default function UserDropdown() {
               </button>
               <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
                 新增、删除、排序、重命名、隐藏快捷标签
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+                AI 总结
+              </p>
+              <Link
+                href="/settings/ai"
+                onClick={() => setOpen(false)}
+                className="mt-2 block w-full rounded-lg border border-slate-200 px-3 py-2 text-center text-xs text-slate-600 transition hover:border-indigo-200 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-300 dark:hover:border-indigo-400 dark:hover:text-indigo-300"
+              >
+                AI 总结配置
+              </Link>
+              <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                AI 提供商、提示词、调用历史与每日 00:30 自动总结
               </p>
             </div>
 

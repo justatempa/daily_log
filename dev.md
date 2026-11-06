@@ -298,3 +298,77 @@ src/
 1.  **Data Security**: 确保 `protectedProcedure` 严格校验 `ctx.session.user.id`，防止跨用户数据访问（在 Prisma 查询中务必带上 `where: { userId: ctx.session.user.id }`）。
 2.  **Performance**: 如果日志量巨大，Timeline 需要分页或无限滚动。初期可限制 `take(20)`。
 3.  **Migration**: 用户可能需要导入旧版的 LocalStorage 数据，可以在用户下拉菜单提供一个“从旧版导入”的临时期入口，读取 LocalStorage 并提交到服务器。
+
+## 9. AI 总结（新增）
+
+### 9.1 功能边界
+
+* 每天 00:30（按用户配置的时区）自动总结「前一天」的日志。
+* 主页标题右侧 / 移动端工具栏「AI 总结」按钮：总结日历当前选中的日期。
+* 配置页 `/settings/ai`：可对任意日期手动生成。
+* 结果写成被总结当天 `23:59` 的一条日志，内容末尾带 `#AI总结`；`Log.source = "AI_SUMMARY"`。
+* 重新总结会先删除当天 `source=AI_SUMMARY` 的日志再插入，且收集输入时排除所有内容含 `#AI总结` 的日志与评论（不会自我总结）。
+* 多个提供商按添加顺序 fallback，单个失败继续下一个；全部失败抛出 `ALL_FAILED`，不写总结日志。
+
+### 9.2 数据模型
+
+在原有 `User` / `Log` / `QuickTag` 之外新增：
+
+* `AiProvider`：`name` / `baseUrl` / `apiKey` / `model` / `enabled`，按 `createdAt` 升序作为 fallback 顺序。
+* `AiSetting`：每用户一条，`prompt`、`autoEnabled`、`timezone`（默认 `Asia/Shanghai`）、`scheduleHour`（0）、`scheduleMinute`（30）、`lastAutoRunDay`。
+* `AiCallLog`：一次总结共享 `runId`，记录每个提供商的 `status` / `error` / `content` / `durationMs` / `trigger`（AUTO / MANUAL / TEST）。
+* `Log.source`：`AI_SUMMARY` 标记，用于替换旧总结与前端识别。
+
+### 9.3 服务端结构
+
+```
+src/server/ai/
+├── config.ts          # 默认值、常量、读取设置、Key 脱敏
+├── default-prompt.ts  # 默认提示词 + buildPrompt（缺占位符自动补齐）
+├── providers.ts       # OpenAI 兼容地址归一化 + 带超时的 fetch 调用
+├── summary.ts         # summarizeDay / testAiProvider / AiSummaryError
+├── scheduler.ts       # 60s tick，按用户时区判断是否到点
+└── ensure-schema.ts   # 幂等建表 / Log.source 补列
+src/instrumentation.ts # Node 启动时 ensure + startAiSummaryScheduler
+src/app/api/ai/        # summarize / test-provider（REST，避开 tRPC 15s 超时）
+```
+
+* 模型调用超时 60s（连通性测试 30s），前端 `postAiAction` 超时 240s。
+* 单次送入模型的日志上限 20000 字符，超出截断并提示。
+* 日期边界统一按用户时区换算成 UTC 后查库（`src/utils/datetime.ts`），避免服务器时区影响「日」的归属。
+
+### 9.4 默认提示词
+
+```
+你是一位温和、克制的私人日记助理。下面是一天（{{date}}）的日志记录，请据此写一份中文总结。
+
+要求：
+1. 只依据给出的日志内容，不编造、不推测未提到的事实；信息不足时如实说明。
+2. 输出 200–400 字，纯文本，分 3–4 段短句，可用「·」开头；不使用 Markdown 标题、表格或代码块。当天内容较少时可以更短，不要为凑字数重复或空泛扩写。
+3. 概括当天的主要事项与进展、情绪与状态变化，以及值得记住的细节。
+4. 日志中标记为未完成的待办（[ ]）单独列出提醒；已完成的待办不必逐条罗列。
+5. 语气平实，像写给本人看的回顾，不要空泛鼓励和套话。
+6. 最后用一句话给出明天可执行的小建议；若日志中有明确的待办或目标，围绕它给建议。
+
+【当日日志】
+{{logs}}
+```
+
+设计取舍：
+
+* 明确「只依据日志、不编造」，抑制模型补写不存在的情节。
+* 限字 + 分段 + 禁用 Markdown，保证结果能直接作为一条日志渲染。
+* 未完成待办单独列出，让总结具备行动价值；已完成的不重复罗列。
+* 末尾一句明日建议，避免空泛鼓励，同时保持简短。
+* `{{date}}` / `{{logs}}` 是可替换占位符；用户删掉占位符时 `buildPrompt` 会把日期和日志追加到末尾，不会丢输入。
+
+### 9.5 部署与迁移
+
+线上是单容器 + 宿主机挂载 `/app/db.sqlite`，GitHub Actions 只做 `docker build/load/run`，没有 `prisma migrate`。因此：
+
+1. `server.js` 启动时通过 `experimental.instrumentationHook` 执行 `ensureAiSchema()`；
+2. 三张表用 `CREATE TABLE IF NOT EXISTS`，索引用 `CREATE INDEX IF NOT EXISTS`；
+3. `Log.source` 通过 `PRAGMA table_info` 检查后 `ALTER TABLE ADD COLUMN`；
+4. tRPC context 与 AI REST 路由也会兜底调用一次（失败只记日志，不阻断普通日志功能）。
+
+本地开发仍需 `npm run db:push` + `npm run db:generate`。

@@ -10,6 +10,8 @@ import Timeline, {
 import QuickInput, { type QuickInputHandle } from "@/components/quick-input/QuickInput";
 import WordCountStats from "@/components/stats/WordCountStats";
 import { api } from "@/utils/api";
+import { postAiAction } from "@/utils/ai-client";
+import { toLocalDayString } from "@/utils/datetime";
 import { useIsMobile } from "@/utils/use-media-query";
 import { countWords } from "@/utils/wordCount";
 import {
@@ -62,6 +64,11 @@ export default function DashboardPage() {
   const [quickTags, setQuickTags] = useState<TagGroup[]>([]);
   const [pendingLogs, setPendingLogs] = useState<PendingLog[]>([]);
   const [privacyMode, setPrivacyMode] = useState(false);
+  const [aiStatus, setAiStatus] = useState<{
+    ok: boolean;
+    text: string;
+  } | null>(null);
+  const [aiPending, setAiPending] = useState(false);
   // 移动端：日历 / 标签面板默认隐藏，按钮触发
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false);
@@ -407,6 +414,48 @@ export default function DashboardPage() {
     }
   };
 
+  const onGenerateAiSummary = async () => {
+    const day = toLocalDayString(selectedDate);
+    if (
+      !window.confirm(
+        `为 ${day} 生成 AI 总结？\n结果会插入当天 23:59，并带 #AI总结 标签；当天已有的 AI 总结会被替换。`,
+      )
+    ) {
+      return;
+    }
+
+    setAiPending(true);
+    setAiStatus(null);
+    const result = await postAiAction<{
+      ok: true;
+      providerName: string;
+      model: string;
+      durationMs: number;
+    }>("/api/ai/summarize", { day });
+    setAiPending(false);
+
+    if (result.ok) {
+      setAiStatus({
+        ok: true,
+        text: `已为 ${day} 生成 AI 总结（${result.data.providerName} · ${
+          result.data.model
+        } · ${(result.data.durationMs / 1000).toFixed(1)}s）。`,
+      });
+      await logsQuery.refetch();
+    } else {
+      const attemptsText =
+        result.attempts && result.attempts.length > 0
+          ? `\n${result.attempts
+              .map(
+                (attempt) =>
+                  `${attempt.providerName}：${attempt.error ?? "调用失败"}`,
+              )
+              .join("\n")}`
+          : "";
+      setAiStatus({ ok: false, text: `${result.error}${attemptsText}` });
+    }
+  };
+
   const filterButtons: { key: typeof filter; label: string }[] = [
     { key: "all", label: "全部" },
     { key: "todo", label: "Todo" },
@@ -434,14 +483,25 @@ export default function DashboardPage() {
               <span>
                 {logsQuery.data?.length ?? 0} 条记录 · {dayWordCount} 字
               </span>
-              <button
-                type="button"
-                onClick={onSaveToMemos}
-                title="把当日日志按 Markdown 格式推送到 Memos"
-                className="whitespace-nowrap rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:border-indigo-200 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-300 dark:hover:border-indigo-400 dark:hover:text-indigo-300"
-              >
-                保存到 Memos
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void onGenerateAiSummary()}
+                  disabled={aiPending}
+                  title="用已启用的 AI 提供商总结所选日期的日志"
+                  className="whitespace-nowrap rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-600 hover:border-indigo-300 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-indigo-400/60 dark:bg-indigo-500/15 dark:text-indigo-300 dark:hover:bg-indigo-500/25"
+                >
+                  {aiPending ? "生成中…" : "AI 总结"}
+                </button>
+                <button
+                  type="button"
+                  onClick={onSaveToMemos}
+                  title="把当日日志按 Markdown 格式推送到 Memos"
+                  className="whitespace-nowrap rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:border-indigo-200 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-300 dark:hover:border-indigo-400 dark:hover:text-indigo-300"
+                >
+                  保存到 Memos
+                </button>
+              </div>
             </div>
           </div>
           <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-800/60">
@@ -579,6 +639,18 @@ export default function DashboardPage() {
           {memosStatus ? (
             <p className="mt-3 text-xs text-slate-500 dark:text-slate-400" role="status">
               {memosStatus}
+            </p>
+          ) : null}
+          {aiStatus ? (
+            <p
+              className={`mt-3 whitespace-pre-wrap text-xs ${
+                aiStatus.ok
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-rose-500 dark:text-rose-400"
+              }`}
+              role="status"
+            >
+              {aiStatus.text}
             </p>
           ) : null}
           <div className="mt-6">
@@ -753,6 +825,16 @@ export default function DashboardPage() {
                 </button>
               ))}
             </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => void onGenerateAiSummary()}
+                disabled={aiPending}
+                title="生成所选日期的 AI 总结"
+                className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-medium text-indigo-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-indigo-400/60 dark:bg-indigo-500/15 dark:text-indigo-300"
+              >
+                {aiPending ? "生成中…" : "AI总结"}
+              </button>
             <button
               type="button"
               onClick={() => setPrivacyMode((prev) => !prev)}
@@ -802,8 +884,22 @@ export default function DashboardPage() {
                 </svg>
               )}
             </button>
+            </div>
           </div>
         </div>
+
+        {aiStatus ? (
+          <p
+            className={`mt-2 whitespace-pre-wrap text-xs ${
+              aiStatus.ok
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-rose-500 dark:text-rose-400"
+            }`}
+            role="status"
+          >
+            {aiStatus.text}
+          </p>
+        ) : null}
 
         {/* 日历：默认隐藏，点日期按钮展开/收起 */}
         {calendarOpen ? (

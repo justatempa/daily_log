@@ -3,9 +3,16 @@ import superjson from "superjson";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/server/auth";
 import { db } from "@/server/db";
+import { ensureAiSchema } from "@/server/ai/ensure-schema";
 
 export const createTRPCContext = async () => {
   const session = await getServerSession(authOptions);
+  // 兜底：启动钩子未执行（例如某些部署方式）时，也保证 AI 表与 Log.source 存在
+  try {
+    await ensureAiSchema();
+  } catch (error) {
+    console.error("[ai-summary] ensure schema failed in trpc context", error);
+  }
   return { db, session };
 };
 
