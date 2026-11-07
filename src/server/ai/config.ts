@@ -7,8 +7,8 @@ export const DEFAULT_TIMEZONE = "Asia/Shanghai";
 export const DEFAULT_SCHEDULE_HOUR = 0;
 export const DEFAULT_SCHEDULE_MINUTE = 30;
 
-/** 写入总结日志时带的行内 hashtag */
-export const AI_SUMMARY_HASHTAG = "#AI总结";
+/** 写入总结日志时带的行内 hashtag（定义在 @/utils/aiSummary，客户端也要用） */
+export { AI_SUMMARY_HASHTAG } from "@/utils/aiSummary";
 /** Log.source 取值：由 AI 总结写入（重新总结时会被替换） */
 export const AI_SUMMARY_SOURCE = "AI_SUMMARY";
 

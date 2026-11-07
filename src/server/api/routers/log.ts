@@ -3,6 +3,7 @@ import { z } from "zod";
 import { protectedProcedure, router } from "@/server/api/trpc";
 import { parseTagGroups } from "@/utils/tags";
 import { countWords } from "@/utils/wordCount";
+import { AI_SUMMARY_HASHTAG } from "@/utils/aiSummary";
 
 export const logRouter = router({
   getAll: protectedProcedure.query(({ ctx }) => {
@@ -223,6 +224,9 @@ export const logRouter = router({
    * 由客户端按本地时区归组到「日」。start/end 由客户端按本地时区给出
    * （start=区间首日 00:00，end=区间次日 00:00），服务端不做时区换算，
    * 与 getByDate 保持一致。
+   *
+   * 统计口径：带 #AI总结 标签的日志（AI 自动总结结果）整体不计入字数，
+   * 避免 AI 生成的总结把当天字数虚高。
    */
   getStats: protectedProcedure
     .input(z.object({ start: z.date(), end: z.date() }))
@@ -231,6 +235,7 @@ export const logRouter = router({
         where: {
           userId: ctx.session!.user.id,
           date: { gte: input.start, lt: input.end },
+          NOT: { content: { contains: AI_SUMMARY_HASHTAG } },
         },
         select: { date: true, content: true },
       });

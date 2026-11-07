@@ -11,6 +11,11 @@ import {
 import { formatTagGroups, parseTagGroups, serializeTagGroups, type TagGroup } from "@/utils/tags";
 import { parseRichText } from "@/utils/hashtag";
 import { api } from "@/utils/api";
+import {
+  Dialog,
+  DialogButton,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 type Reply = {
   id: string;
@@ -513,18 +518,50 @@ const Timeline = forwardRef<TimelineHandle, {
           ) : null}
 
           {editingTagsId === log.id ? (
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-label="编辑标签"
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-            >
-              <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-700 dark:bg-slate-800">
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">编辑标签</h3>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            <Dialog
+              open
+              onClose={() => setEditingTagsId(null)}
+              title="编辑标签"
+              size="md"
+              description={
+                <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
                   点击标签进行选择或取消选择
                 </p>
-                <div className="mt-4 max-h-[400px] space-y-3 overflow-y-auto">
+              }
+              footer={
+                <DialogFooter>
+                  <DialogButton
+                    variant="primary"
+                    onClick={() => {
+                      const map = new Map<string, string[]>();
+                      for (const item of selectedTagsForEdit) {
+                        if (!map.has(item.category)) {
+                          map.set(item.category, []);
+                        }
+                        map.get(item.category)?.push(item.label);
+                      }
+                      const tagGroups: TagGroup[] = Array.from(map.entries()).map(
+                        ([category, labels]) => ({
+                          category,
+                          labels,
+                        }),
+                      );
+                      onUpdateTags(log.id, serializeTagGroups(tagGroups));
+                      setEditingTagsId(null);
+                    }}
+                  >
+                    保存
+                  </DialogButton>
+                  <DialogButton
+                    variant="secondary"
+                    onClick={() => setEditingTagsId(null)}
+                  >
+                    取消
+                  </DialogButton>
+                </DialogFooter>
+              }
+            >
+              <div className="max-h-[50vh] space-y-3 overflow-y-auto">
                   {groupedQuickTags.length > 0 ? (
                     groupedQuickTags.map(({ category, labels }) => (
                       <div key={category}>
@@ -579,40 +616,7 @@ const Timeline = forwardRef<TimelineHandle, {
                     </p>
                   )}
                 </div>
-                <div className="mt-4 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const map = new Map<string, string[]>();
-                      for (const item of selectedTagsForEdit) {
-                        if (!map.has(item.category)) {
-                          map.set(item.category, []);
-                        }
-                        map.get(item.category)?.push(item.label);
-                      }
-                      const tagGroups: TagGroup[] = Array.from(map.entries()).map(
-                        ([category, labels]) => ({
-                          category,
-                          labels,
-                        }),
-                      );
-                      onUpdateTags(log.id, serializeTagGroups(tagGroups));
-                      setEditingTagsId(null);
-                    }}
-                    className="rounded-full bg-indigo-600 px-4 py-2 text-xs text-white hover:bg-indigo-500"
-                  >
-                    保存
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditingTagsId(null)}
-                    className="rounded-full border border-slate-200 px-4 py-2 text-xs text-slate-600 hover:border-indigo-200 dark:border-slate-700 dark:text-slate-300 dark:hover:border-indigo-400"
-                  >
-                    取消
-                  </button>
-                </div>
-              </div>
-            </div>
+            </Dialog>
           ) : null}
             </div>
           ))}

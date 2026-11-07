@@ -14,6 +14,8 @@ import { postAiAction } from "@/utils/ai-client";
 import { toLocalDayString } from "@/utils/datetime";
 import { useIsMobile } from "@/utils/use-media-query";
 import { countWords } from "@/utils/wordCount";
+import { isAiSummaryText } from "@/utils/aiSummary";
+import { confirm } from "@/components/ui/confirm";
 import {
   formatTagGroups,
   parseTagGroups,
@@ -284,8 +286,8 @@ export default function DashboardPage() {
 
   /**
    * 所选日期当天的有效字数：按每条日志/评论自身 date 归属到「日」
-   * （与 getStats 统计口径一致）；本地乐观条目（发送中/失败重发）也计入，
-   * 保证发送日志或评论后数字立即更新。
+   * （与 getStats 统计口径一致：带 #AI总结 标签的日志不计入）；
+   * 本地乐观条目（发送中/失败重发）也计入，保证发送日志或评论后数字立即更新。
    */
   const dayWordCount = useMemo(() => {
     const start = dayRange.start.getTime();
@@ -293,12 +295,16 @@ export default function DashboardPage() {
     let total = 0;
     for (const log of logsQuery.data ?? []) {
       const logTime = log.date.getTime();
-      if (logTime >= start && logTime < end) {
+      if (logTime >= start && logTime < end && !isAiSummaryText(log.content)) {
         total += countWords(log.content);
       }
       for (const reply of log.replies ?? []) {
         const replyTime = reply.date.getTime();
-        if (replyTime >= start && replyTime < end) {
+        if (
+          replyTime >= start &&
+          replyTime < end &&
+          !isAiSummaryText(reply.content)
+        ) {
           total += countWords(reply.content);
         }
       }
@@ -417,9 +423,12 @@ export default function DashboardPage() {
   const onGenerateAiSummary = async () => {
     const day = toLocalDayString(selectedDate);
     if (
-      !window.confirm(
-        `为 ${day} 生成 AI 总结？\n结果会插入当天 23:59，并带 #AI总结 标签；当天已有的 AI 总结会被替换。`,
-      )
+      !(await confirm({
+        title: `为 ${day} 生成 AI 总结？`,
+        description:
+          "结果会插入当天 23:59，并带 #AI总结 标签；当天已有的 AI 总结会被替换。",
+        confirmText: "开始生成",
+      }))
     ) {
       return;
     }

@@ -1,6 +1,7 @@
 ﻿import type { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { formatTagGroups, parseTagGroups } from "@/utils/tags";
+import { isAiSummaryText } from "@/utils/aiSummary";
 import {
   formatDayLabel,
   formatZonedTime,
@@ -88,10 +89,6 @@ function capInputText(text: string): string {
   return `${chars.slice(0, MAX_INPUT_CHARS).join("")}\n…（日志过长，已截断）`;
 }
 
-function isAiSummaryContent(content: string): boolean {
-  return content.includes(AI_SUMMARY_HASHTAG);
-}
-
 /** 把一条日志（或评论）渲染成一行送入模型的纯文本 */
 function renderLogLine(
   log: LogLineSource,
@@ -99,7 +96,7 @@ function renderLogLine(
   depth: 0 | 1,
 ): string[] {
   const content = log.content?.trim() ?? "";
-  if (isAiSummaryContent(content)) return [];
+  if (isAiSummaryText(content)) return [];
 
   const tagText = formatTagGroups(parseTagGroups(log.tags));
   const body = content || (tagText ? `仅标签记录（${tagText}）` : "");

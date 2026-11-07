@@ -5,6 +5,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@/server/api/root";
 import { api } from "@/utils/api";
 import { postAiAction } from "@/utils/ai-client";
+import { confirm } from "@/components/ui/confirm";
 
 type HistoryRun = inferRouterOutputs<AppRouter>["ai"]["history"]["runs"][number];
 type HistoryItem = HistoryRun["items"][number];
@@ -64,9 +65,12 @@ export default function AiHistorySection() {
   const onRegenerate = async (day: string) => {
     if (regeneratingDay) return;
     if (
-      !window.confirm(
-        `重新生成 ${day} 的 AI 总结？\n成功后会替换当天已有的 AI 总结；总结时不会包含带 #AI总结 的日志。`,
-      )
+      !(await confirm({
+        title: `重新生成 ${day} 的 AI 总结？`,
+        description:
+          "成功后会替换当天已有的 AI 总结；总结时不会包含带 #AI总结 的日志。",
+        confirmText: "重新生成",
+      }))
     ) {
       return;
     }

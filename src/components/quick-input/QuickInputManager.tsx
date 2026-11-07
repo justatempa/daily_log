@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState, type DragEvent } from "react";
-import { createPortal } from "react-dom";
+import { useMemo, useState, type DragEvent } from "react";
 import { api } from "@/utils/api";
+import { confirm } from "@/components/ui/confirm";
+import { Dialog } from "@/components/ui/dialog";
 
 type QuickTagItem = {
   id: string;
@@ -104,20 +105,10 @@ export default function QuickInputManager({
   // 渲染分组（拖动预览时按预览顺序）
   const groups = useMemo(() => groupItems(orderedItems), [orderedItems]);
 
-  // Esc 关闭
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
   if (!open) return null;
-  // 弹窗挂到 document.body：组件渲染在带 backdrop-blur 的顶栏内，
-  // 直接 fixed 会以顶栏为包含块导致弹窗被顶到页面顶部且只显示一部分
-  if (typeof document === "undefined") return null;
+  // 统一 Dialog 内部会 Portal 到 body：组件渲染在带 backdrop-blur 的顶栏内，
+  // 直接 fixed 会以顶栏为包含块导致弹窗被顶到页面顶部且只显示一部分。
+  // Esc 关闭、遮罩关闭、滚动锁定、焦点管理也一并交给 Dialog 处理。
 
   /** 开始拖动 */
   const startDrag = (
@@ -184,11 +175,14 @@ export default function QuickInputManager({
     }
   };
 
-  const handleDeleteLabel = (tag: QuickTagItem, category: string) => {
+  const handleDeleteLabel = async (tag: QuickTagItem, category: string) => {
     if (
-      !window.confirm(
-        `删除快捷标签「${category}：${tag.label}」？\n仅删除该快捷输入，已添加的日志不受影响。`,
-      )
+      !(await confirm({
+        title: `删除快捷标签「${category}：${tag.label}」？`,
+        description: "仅删除该快捷输入，已添加的日志不受影响。",
+        confirmText: "删除",
+        tone: "danger",
+      }))
     ) {
       return;
     }
@@ -199,13 +193,16 @@ export default function QuickInputManager({
     deleteMutation.mutate({ id: tag.id });
   };
 
-  const handleDeleteCategory = (category: string) => {
+  const handleDeleteCategory = async (category: string) => {
     const count =
       groups.find((g) => g.category === category)?.tags.length ?? 0;
     if (
-      !window.confirm(
-        `删除分类「${category}」及其全部 ${count} 个标签？\n仅删除快捷输入，已添加的日志不受影响。`,
-      )
+      !(await confirm({
+        title: `删除分类「${category}」及其全部 ${count} 个标签？`,
+        description: "仅删除快捷输入，已添加的日志不受影响。",
+        confirmText: "删除",
+        tone: "danger",
+      }))
     ) {
       return;
     }
@@ -242,54 +239,27 @@ export default function QuickInputManager({
     setLabelDraft("");
   };
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title="快捷输入管理"
+      size="lg"
+      bodyClassName="px-4 py-4"
+      footer={
+        <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+          拖动左侧手柄可调整分类与标签顺序；隐藏的标签不会在主页面显示；编辑、删除只影响快捷输入本身，不影响已添加的日志。
+        </p>
+      }
+    >
       <div
-        className="absolute inset-0 bg-black/50"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="快捷输入管理"
-        className="relative flex max-h-[85dvh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-800"
+        className="space-y-5"
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => {
+          event.preventDefault();
+          handleDrop();
+        }}
       >
-        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-slate-700">
-          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-            快捷输入管理
-          </h3>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="关闭"
-            className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
-          >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
-        </div>
-
-        <div
-          className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4"
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={(event) => {
-            event.preventDefault();
-            handleDrop();
-          }}
-        >
           {/* 新增 */}
           <div>
             <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -697,14 +667,6 @@ export default function QuickInputManager({
             </div>
           )}
         </div>
-
-        <div className="border-t border-slate-100 px-4 py-2.5 dark:border-slate-700">
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            拖动左侧手柄可调整分类与标签顺序；隐藏的标签不会在主页面显示；编辑、删除只影响快捷输入本身，不影响已添加的日志。
-          </p>
-        </div>
-      </div>
-    </div>,
-    document.body,
+    </Dialog>
   );
 }

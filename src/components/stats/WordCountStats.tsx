@@ -8,8 +8,9 @@ const BAR_MAX_HEIGHT = 56;
 
 /**
  * 字数统计卡片：展示某个月份每日的字数柱状图 + 本月总计 / 日均 / 今日字数。
- * 数据来自 log.getStats（每条日志/评论按其自身 date 归属到本地时区的某天），
- * 发送日志/评论后前端刷新数据即更新；页面刷新重新拉取也会更新。
+ * 数据来自 log.getStats（每条日志/评论按其自身 date 归属到本地时区的某天，
+ * 带 #AI总结 标签的 AI 总结日志不计入），发送日志/评论后前端刷新数据即更新；
+ * 页面刷新重新拉取也会更新。
  */
 export default function WordCountStats({ monthDate }: { monthDate: Date }) {
   const { year, month } = useMemo(

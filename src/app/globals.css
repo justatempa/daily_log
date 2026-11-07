@@ -30,6 +30,35 @@ body {
   box-sizing: border-box;
 }
 
+/* 统一弹窗（src/components/ui/dialog.tsx）的入场动画 */
+@keyframes dialog-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dialog-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.dialog-backdrop {
+  animation: dialog-backdrop-in 0.15s ease-out both;
+}
+
+.dialog-panel {
+  animation: dialog-panel-in 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
 /* 减弱动效偏好：关闭动画/过渡/平滑滚动 */
 @media (prefers-reduced-motion: reduce) {
   *,

@@ -8,6 +8,7 @@ import AiHistorySection from "@/components/ai/AiHistorySection";
 import { api } from "@/utils/api";
 import { postAiAction } from "@/utils/ai-client";
 import { toLocalDayString } from "@/utils/datetime";
+import { confirm } from "@/components/ui/confirm";
 
 type SettingData = inferRouterOutputs<AppRouter>["ai"]["getSetting"];
 type ProviderItem = SettingData["providers"][number];
@@ -226,11 +227,14 @@ export default function AiSettingsPage() {
     updatePrompt.mutate({ prompt });
   };
 
-  const onResetPrompt = () => {
+  const onResetPrompt = async () => {
     if (
-      !window.confirm(
-        "恢复默认提示词？当前自定义的提示词内容会被覆盖。",
-      )
+      !(await confirm({
+        title: "恢复默认提示词？",
+        description: "当前自定义的提示词内容会被覆盖。",
+        confirmText: "恢复默认",
+        tone: "danger",
+      }))
     ) {
       return;
     }
@@ -311,11 +315,14 @@ export default function AiSettingsPage() {
     await utils.ai.history.invalidate();
   };
 
-  const onDeleteProvider = (provider: ProviderItem) => {
+  const onDeleteProvider = async (provider: ProviderItem) => {
     if (
-      !window.confirm(
-        `删除提供商「${provider.name}」？\n删除后不再参与总结，历史调用记录会保留。`,
-      )
+      !(await confirm({
+        title: `删除提供商「${provider.name}」？`,
+        description: "删除后不再参与总结，历史调用记录会保留。",
+        confirmText: "删除",
+        tone: "danger",
+      }))
     ) {
       return;
     }
@@ -328,9 +335,12 @@ export default function AiSettingsPage() {
       return;
     }
     if (
-      !window.confirm(
-        `为 ${manualDay} 生成 AI 总结？\n结果会作为日志插入当天 23:59，并带 ${"#AI总结"} 标签；当天已有的 AI 总结会被替换。`,
-      )
+      !(await confirm({
+        title: `为 ${manualDay} 生成 AI 总结？`,
+        description:
+          "结果会作为日志插入当天 23:59，并带 #AI总结 标签；当天已有的 AI 总结会被替换。",
+        confirmText: "开始生成",
+      }))
     ) {
       return;
     }

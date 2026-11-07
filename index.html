@@ -51,6 +51,66 @@
       }
     }
   </style>
+  <!-- 统一确认弹窗样式（与 src/components/ui/dialog.tsx 保持同一视觉） -->
+  <style>
+    .dl-confirm-backdrop {
+      position: fixed; inset: 0; z-index: 1000; display: flex;
+      align-items: center; justify-content: center; padding: 1rem;
+      background: rgba(15, 23, 42, .5); backdrop-filter: blur(4px);
+      animation: dl-fade .15s ease-out both;
+    }
+    .dl-confirm-panel {
+      width: 100%; max-width: 24rem; overflow: hidden;
+      border: 1px solid #e2e8f0; border-radius: 1rem; background: #fff;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, .1), 0 8px 10px -6px rgba(0, 0, 0, .1);
+      animation: dl-pop .18s cubic-bezier(.2, .8, .2, 1) both;
+    }
+    .dl-confirm-header {
+      display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+      padding: .75rem 1.25rem; border-bottom: 1px solid #f1f5f9;
+    }
+    .dl-confirm-header h2 { margin: 0; font-size: .875rem; font-weight: 600; color: #0f172a; }
+    .dl-confirm-close {
+      border: 0; background: transparent; color: #94a3b8; cursor: pointer;
+      border-radius: 9999px; padding: .25rem; line-height: 1; font-size: 1rem;
+    }
+    .dl-confirm-close:hover { background: #f1f5f9; color: #475569; }
+    .dl-confirm-desc {
+      margin: 0; padding: 1rem 1.25rem; font-size: .875rem; line-height: 1.6;
+      white-space: pre-line; color: #475569;
+    }
+    .dl-confirm-footer {
+      display: flex; justify-content: flex-end; gap: .5rem;
+      padding: .75rem 1.25rem; border-top: 1px solid #f1f5f9;
+    }
+    .dl-btn {
+      border: 0; border-radius: .5rem; padding: .5rem 1rem; font-size: .75rem;
+      font-weight: 500; cursor: pointer; transition: background-color .15s, border-color .15s;
+    }
+    .dl-btn:focus-visible { outline: 2px solid #6366f1; outline-offset: 2px; }
+    .dl-btn-secondary { background: #fff; border: 1px solid #e2e8f0; color: #475569; }
+    .dl-btn-secondary:hover { background: #f8fafc; border-color: #c7d2fe; }
+    .dl-btn-primary { background: #4f46e5; color: #fff; }
+    .dl-btn-primary:hover { background: #6366f1; }
+    .dl-btn-danger { background: #e11d48; color: #fff; }
+    .dl-btn-danger:hover { background: #f43f5e; }
+    @keyframes dl-fade { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes dl-pop {
+      from { opacity: 0; transform: translateY(8px) scale(.97); }
+      to { opacity: 1; transform: none; }
+    }
+    @media (prefers-color-scheme: dark) {
+      .dl-confirm-panel { background: #1e293b; border-color: #334155; }
+      .dl-confirm-header, .dl-confirm-footer { border-color: #334155; }
+      .dl-confirm-header h2 { color: #f1f5f9; }
+      .dl-confirm-desc { color: #cbd5e1; }
+      .dl-btn-secondary { background: #1e293b; border-color: #475569; color: #cbd5e1; }
+      .dl-btn-secondary:hover { background: #334155; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .dl-confirm-backdrop, .dl-confirm-panel { animation-duration: .01ms; }
+    }
+  </style>
 </head>
 <body class="font-inter bg-neutral min-h-screen">
   <div class="container mx-auto px-4 py-8 max-w-5xl">
@@ -555,12 +615,17 @@
     }
     
     // 删除记录
-    function deleteRecord(index) {
+    async function deleteRecord(index) {
       const dateString = formatDate(selectedDate);
       const dateRecords = records[dateString] || [];
       
       if (index >= 0 && index < dateRecords.length) {
-        if (confirm('确定要删除这条记录吗？')) {
+        if (await appConfirm({
+          title: '删除这条记录？',
+          description: '删除后无法恢复。',
+          confirmText: '删除',
+          danger: true
+        })) {
           dateRecords.splice(index, 1);
           saveRecords();
           renderTimeline();
@@ -1108,6 +1173,72 @@
       }
     }
     
+    // 统一确认弹窗：返回 Promise<boolean>，替代浏览器自带的 confirm()
+    function appConfirm(opts) {
+      return new Promise((resolve) => {
+        const wrap = document.createElement('div');
+        wrap.className = 'dl-confirm-backdrop';
+        const panel = document.createElement('div');
+        panel.className = 'dl-confirm-panel';
+        panel.setAttribute('role', 'dialog');
+        panel.setAttribute('aria-modal', 'true');
+        panel.setAttribute('aria-labelledby', 'dl-confirm-title');
+        panel.innerHTML =
+          '<div class="dl-confirm-header"><h2 id="dl-confirm-title"></h2>' +
+          '<button type="button" class="dl-confirm-close" aria-label="关闭">&times;</button></div>' +
+          '<div class="dl-confirm-body"><p class="dl-confirm-desc"></p></div>' +
+          '<div class="dl-confirm-footer">' +
+          '<button type="button" class="dl-btn dl-btn-secondary" data-dl="cancel"></button>' +
+          '<button type="button" class="dl-btn" data-dl="confirm"></button></div>';
+        panel.querySelector('h2').textContent = opts.title;
+        const desc = panel.querySelector('.dl-confirm-desc');
+        if (opts.description) desc.textContent = opts.description;
+        else desc.remove();
+        const cancelBtn = panel.querySelector('[data-dl="cancel"]');
+        const confirmBtn = panel.querySelector('[data-dl="confirm"]');
+        const closeBtn = panel.querySelector('.dl-confirm-close');
+        cancelBtn.textContent = opts.cancelText || '取消';
+        confirmBtn.textContent = opts.confirmText || '确定';
+        confirmBtn.classList.add(opts.danger ? 'dl-btn-danger' : 'dl-btn-primary');
+        wrap.appendChild(panel);
+        document.body.appendChild(wrap);
+
+        const previousFocus = document.activeElement;
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+
+        function done(value) {
+          document.removeEventListener('keydown', onKey);
+          wrap.remove();
+          document.body.style.overflow = previousOverflow;
+          if (previousFocus && previousFocus.focus) previousFocus.focus();
+          resolve(value);
+        }
+        function onKey(event) {
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            done(false);
+          } else if (event.key === 'Tab') {
+            const buttons = Array.from(panel.querySelectorAll('button'));
+            const index = buttons.indexOf(document.activeElement);
+            event.preventDefault();
+            const next = event.shiftKey
+              ? (index <= 0 ? buttons.length - 1 : index - 1)
+              : (index + 1) % buttons.length;
+            buttons[next].focus();
+          }
+        }
+        document.addEventListener('keydown', onKey);
+        wrap.addEventListener('click', (event) => {
+          if (event.target === wrap) done(false);
+        });
+        cancelBtn.addEventListener('click', () => done(false));
+        closeBtn.addEventListener('click', () => done(false));
+        confirmBtn.addEventListener('click', () => done(true));
+        (opts.danger ? cancelBtn : confirmBtn).focus();
+      });
+    }
+
     // 显示通知
     function showNotification(message, type = 'info') {
       // 创建通知元素
