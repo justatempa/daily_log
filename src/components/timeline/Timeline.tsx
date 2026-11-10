@@ -11,6 +11,8 @@ import {
 import { formatTagGroups, parseTagGroups, serializeTagGroups, type TagGroup } from "@/utils/tags";
 import { parseRichText } from "@/utils/hashtag";
 import { api } from "@/utils/api";
+import { LogImageGrid } from "@/components/image/LogImageGrid";
+import type { LogImageInfo } from "@/utils/image";
 import {
   Dialog,
   DialogButton,
@@ -31,6 +33,8 @@ export type LogItem = {
   isTodo: boolean;
   isTodoDone: boolean;
   replies?: Reply[];
+  /** 该条日志附带的图片（有则显示缩略图，点开看压缩图 / 原图） */
+  images?: LogImageInfo[];
   /** 本地乐观条目的同步状态：sending=发送中，failed=发送失败 */
   syncStatus?: "sending" | "failed";
 };
@@ -75,6 +79,8 @@ const Timeline = forwardRef<TimelineHandle, {
   onAddReply: (id: string, content: string) => void;
   onResend: (id: string) => void;
   scrollToBottomKey: number;
+  /** 从相册等外部入口跳回来时，把这栋日志滚进视野并高亮几秒 */
+  highlightLogId?: string | null;
 }>(({
   logs,
   privacyMode = false,
@@ -88,6 +94,7 @@ const Timeline = forwardRef<TimelineHandle, {
   onAddReply,
   onResend,
   scrollToBottomKey,
+  highlightLogId = null,
 }, ref) => {
   const hasLogs = logs.length > 0;
   const sorted = useMemo(
@@ -109,6 +116,7 @@ const Timeline = forwardRef<TimelineHandle, {
     () => new Set(),
   );
   const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
+  const [activeHighlightId, setActiveHighlightId] = useState<string | null>(null);
   const replyInputRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -185,6 +193,25 @@ const Timeline = forwardRef<TimelineHandle, {
     }
   }, [activeReplyId]);
 
+  // 从相册跳回来：把目标日志滚到视野中间，并短暂高亮
+  useEffect(() => {
+    if (!highlightLogId) return;
+    if (!logs.some((log) => log.id === highlightLogId)) return;
+
+    setActiveHighlightId(highlightLogId);
+    const scrollTimer = setTimeout(() => {
+      const target = containerRef.current?.querySelector<HTMLElement>(
+        `[data-log-id="${highlightLogId}"]`,
+      );
+      target?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }, 120);
+    const clearTimer = setTimeout(() => setActiveHighlightId(null), 3200);
+    return () => {
+      clearTimeout(scrollTimer);
+      clearTimeout(clearTimer);
+    };
+  }, [highlightLogId, logs]);
+
   return (
     <div
       ref={containerRef}
@@ -199,8 +226,13 @@ const Timeline = forwardRef<TimelineHandle, {
           {sorted.map((log) => (
             <div
               key={log.id}
-              className={`relative rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/70 ${
+              data-log-id={log.id}
+              className={`relative rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow dark:border-slate-700/60 dark:bg-slate-800/70 ${
                 openMenuId === log.id ? "z-20" : ""
+              } ${
+                activeHighlightId === log.id
+                  ? "ring-2 ring-indigo-400 ring-offset-2 ring-offset-white dark:ring-indigo-400 dark:ring-offset-slate-900"
+                  : ""
               }`}
             >
           {!log.syncStatus && (
@@ -380,6 +412,10 @@ const Timeline = forwardRef<TimelineHandle, {
                         仅标签记录
                       </p>
                     )}
+                    <LogImageGrid
+                      images={log.images}
+                      privacyMode={privacyMode}
+                    />
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                       <span className={showDate ? "font-medium text-slate-600 dark:text-slate-300" : ""}>
                         {showDate ? formatDateTime(log.date) : formatTime(log.date)}

@@ -22,5 +22,8 @@ Thumbs.db
 
 nul
 
+# 上传的图片（本地用户数据，不进版本库）
+uploads/
+
 # desktop logger local config
 desktop_logger/config.json

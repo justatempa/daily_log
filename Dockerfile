@@ -24,12 +24,15 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=13003
 ENV HOSTNAME=0.0.0.0
+# 图片存储目录：容器内固定 /app/uploads，由宿主机挂载持久化
+ENV UPLOAD_DIR=/app/uploads
 
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 
-RUN chown -R nextjs:nodejs /app
+# 预建图片目录，保证以 nextjs 用户运行时可直接写盘
+RUN mkdir -p /app/uploads/images && chown -R nextjs:nodejs /app
 
 USER nextjs
 EXPOSE 13003

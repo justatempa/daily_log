@@ -144,6 +144,14 @@ export default function SearchPage() {
         tags: log.tags,
         isTodo: log.isTodo,
         isTodoDone: log.isTodoDone,
+        images: log.images?.map((image) => ({
+          id: image.id,
+          width: image.width,
+          height: image.height,
+          name: image.name,
+          size: image.size,
+          mediumSize: image.mediumSize,
+        })),
         replies: log.replies?.map((r) => ({
           id: r.id,
           content: r.content,

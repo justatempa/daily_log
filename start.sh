@@ -30,9 +30,11 @@ if docker ps -a --format '{{.Names}}' | grep -q "^${APP_NAME}$"; then
   docker rm -f "$APP_NAME" >/dev/null
 fi
 
-# Run container with DB mapped to host file
+# Run container with DB + uploads mapped to host
+mkdir -p uploads
 docker run -d --name "$APP_NAME" \
   -p "${PORT}:${PORT}" \
   -v "$(pwd)/${DB_FILE}:/app/db.sqlite" \
+  -v "$(pwd)/uploads:/app/uploads" \
   --env-file "$ENV_FILE" \
   "$IMAGE_NAME"

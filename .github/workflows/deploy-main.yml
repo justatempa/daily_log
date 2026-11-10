@@ -69,6 +69,10 @@ jobs:
             chown 1001:1001 "$APP_DIR/db.sqlite"
             chmod 660 "$APP_DIR/db.sqlite"
 
+            # 图片目录挂载到宿主机：容器重建后图片不丢
+            mkdir -p "$APP_DIR/uploads"
+            chown -R 1001:1001 "$APP_DIR/uploads"
+
             docker load -i "$IMAGE_ARCHIVE"
 
             if docker ps -a --format '{{.Names}}' | grep -q "^${APP_NAME}$"; then
@@ -80,6 +84,7 @@ jobs:
               --restart unless-stopped \
               -p "${PORT}:${PORT}" \
               -v "$APP_DIR/db.sqlite:/app/db.sqlite" \
+              -v "$APP_DIR/uploads:/app/uploads" \
               -e BARK_SERVER_URL="${{ secrets.BARK_SERVER_URL }}" \
               -e BARK_DEVICE_KEY="${{ secrets.BARK_DEVICE_KEY }}" \
               --env-file "$APP_DIR/.env" \

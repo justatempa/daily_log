@@ -374,3 +374,103 @@ src/app/api/ai/        # summarize / test-provider（REST，避开 tRPC 15s 超�
 4. tRPC context 与 AI REST 路由也会兜底调用一次（失败只记日志，不阻断普通日志功能）。
 
 本地开发仍需 `npm run db:push` + `npm run db:generate`。
+
+## 10. 图片附件（新增）
+
+### 10.1 功能边界
+
+* 输入区（桌面 / 移动）可点「添加图片」选图，也支持直接 `Ctrl+V` 粘贴截图；一条日志最多 9 张。
+* 选中即上传（不必等日志发出），上传完成后输入区显示缩略图；可单张移除，失败可点重试。
+* 时间轴按缩略图展示，点开看**压缩图**（长边 1600 webp），再点「查看原图」才加载原始文件。
+* 删除日志时连带删除该日志（含其评论）的图片文件；「选了图但一直没发」的图片 24 小时后自动回收。
+* 图片只对本人可见：读取接口按登录用户过滤，非本人一律 404。
+
+### 10.2 存储与三档图
+
+数据量不大，直接落本地文件夹（`UPLOAD_DIR`，默认 `./uploads`，容器内 `/app/uploads`），不入对象存储。每张图存三份：
+
+| 变体 | 生成方式 | 用途 |
+| --- | --- | --- |
+| original | 上传字节原样保存（仅按真实格式定扩展名） | 「查看原图」、下载 |
+| medium | `sharp().rotate().resize({1600, fit: inside, withoutEnlargement}).webp({quality:80})` | 大图预览默认加载 |
+| thumb | 同上，长边 480、quality 72 | 时间轴 / 输入区缩略图 |
+
+* 压缩与缩略都在服务端做，客户端只上传原始文件，结果稳定且不依赖浏览器 canvas 实现。
+* `rotate()` 会按 EXIF 方向自动摆正（手机竖拍不会横躺），入库的 `width/height` 也是摆正后的显示尺寸，前端据此算占位比例。
+* 原图不改写，压缩失败也不影响原图可用性；写入失败会回滚已写的文件，不留半套数据。
+* 目录结构：`uploads/images/YYYY/MM/<日期串>-<uuid>-orig.<ext> | -md.webp | -thumb.webp`。
+
+### 10.3 数据模型
+
+`LogImage`：`userId` / `logId?`（上传后先为空，随日志提交时关联）/ `name` / `mime` / `size`（原图字节）/ `mediumSize` / `width` / `height` / `originalPath` / `mediumPath` / `thumbPath` / `sortOrder`。
+
+* 路径存**相对上传根目录**的正斜杠路径，读取时统一经 `resolveStoredPath()` 校验，拒绝任何跳出根目录的路径。
+* `Log.images`、`User.logImages` 为反向关系；`logId` 外键 `ON DELETE CASCADE`。
+
+### 10.4 接口
+
+```
+src/server/image/storage.ts        # saveLogImage / deleteLogImageFiles / cleanupOrphanImages
+src/app/api/images/upload/route.ts # POST multipart：鉴权 → 校验大小/格式 → 三档落盘 → 返回 id 与尺寸
+src/app/api/images/[id]/[variant]/route.ts  # GET thumb|medium|original，流式返回，private immutable 缓存
+src/app/api/images/[id]/route.ts   # DELETE 未归属日志的图片（已归属的返回 409，随日志删除）
+```
+
+* 上传走 REST 而非 tRPC：multipart 文件不适合 tRPC 序列化。
+* 单张上限 20MB、单请求最多 9 张；格式按 sharp 识别的真实格式判定（JPG/PNG/WebP/GIF/AVIF），不信任扩展名。
+* `log.add` 新增 `imageIds`：只接受本人名下、未归属其它日志的图片，按传入顺序写 `sortOrder`；同一 `clientId` 重发时会把漏挂的图片补挂上。
+* `log.getByDate` / `log.search` 一并返回 `images`（按 `sortOrder`）。
+
+### 10.5 前端
+
+```
+src/components/image/useImageAttachments.ts   # 上传队列（objectURL 本地预览 → 服务端缩略图）
+src/components/image/ImageAttachmentBar.tsx   # ImageAttachButton + ImageAttachmentPreview
+src/components/image/LogImageGrid.tsx         # 缩略图墙 + Dialog 大图（压缩图/原图切换）
+src/utils/image.ts                            # imageUrl() / formatBytes() / 常量
+```
+
+* 上传中禁止发送（`attachments.uploading` 时按钮置灰），避免日志发出后图片还在路上。
+* 列表里的图只做「提示有图」，单图上限 `160px`，多图九宫格整体 `240px`（3 列），点开才看大图。
+* 输入区高度统一：桌面 Todo / 加图 / 输入框 / 发送都是 `52px`，移动端都是 `40px`，`items-end` 保证多行输入时底边对齐。
+* 大图复用统一 `Dialog`（项目零依赖弹窗），不再单独写一套 lightbox。
+* 带图日志发送成功后会对当天 `getByDate` 做一次 `invalidate`：缓存里的图片记录（尺寸/大小）以服务端为准。
+
+### 10.6 部署注意
+
+* 线上已给 `docker run` 增加 `-v "$APP_DIR/uploads:/app/uploads"`，容器重建不丢图；`start.sh` 同步加了这个挂载。
+* `LogImage` 表由 `ensureAiSchema()` 在生产启动时幂等创建，老库无需手动迁移。
+* standalone 产物在 `next.config.mjs` 通过 `outputFileTracingIncludes` 显式带上 `sharp` 与 `@img/*` 原生二进制。
+
+## 11. 相册（新增）
+
+### 11.1 功能边界
+
+* 只收录**已归属日志**的图片（`logId != null`），上传后没发出去的孤儿图不进相册。
+* 按「日志日期」倒序归档：日期分组标题 + 当天缩略图网格；点图开大图弹窗（默认压缩图，可切原图）。
+* 每条日志都能跳转回它在仪表盘上的位置：`/?date=YYYY-MM-DD` 打开那一天，`/?date=YYYY-MM-DD&log=<logId>` 还会把该条日志滚进视野并高亮 3 秒。
+* 未做：按标签/关键字筛选相册、图片下载、批量删除。
+
+### 11.2 接口
+
+```
+src/server/api/routers/log.ts  # log.listImages：{ page?, pageSize? } → { items, total, page, pageSize, hasMore }
+```
+
+* 分页用 offset（`page` 从 1 起、`pageSize` 默认 48 上限 100），按 `[{ log: { date: "desc" } }, { sortOrder: "asc" }, { createdAt: "asc" }]` 排序——Prisma 支持按「对一关联」的字段排序。
+* 每项返回 `{ id, width, height, name, size, mediumSize, logId, logDate, logTitle }`，`logTitle` 由服务端把正文压成一行、截 48 字（`snippetOf()`），列表不传整段正文。
+
+### 11.3 前端
+
+```
+src/app/(dashboard)/gallery/page.tsx     # 相册页：日期分组网格 + 大图 Dialog + 加载更多
+src/components/nav-links.tsx             # 桌面头部导航「仪表盘 / 搜索 / 相册」
+src/app/(dashboard)/page.tsx             # 移动端工具栏相册图标入口 + ?date=/?log= 深链解析
+src/components/timeline/Timeline.tsx     # highlightLogId：滚到目标日志并短暂高亮（data-log-id + ring）
+```
+
+* 入口落位：桌面走 `NavLinks`（移动端看不到它）；移动端放首页工具栏第二行右侧的图标胶囊（和 AI总结/隐私 同一排），**不占底部输入区**——那里刚做过 40px 等高校准。
+* 相册页沿用搜索页范式：移动端 `lg:hidden` 的「返回记录」链接、圆角时间线卡片、`Dialog size="lg"` + 深色 `bodyClassName`。
+* 大图弹窗 footer：尺寸/原图/压缩体积（左）+「查看原图」「看这天」「看这条日志」（右，`flex-col` 在窄屏自动换行）；左右箭头在当前已加载的图片间循环切换。
+* 深链只认一次：`appliedDeepLink` ref 保证 `?date=` / `?log=` 只应用一次，之后手动切日期不会被 URL 拽回去。
+

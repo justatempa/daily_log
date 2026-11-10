@@ -8,6 +8,7 @@ export default function NavLinks({ isAdmin }: { isAdmin: boolean }) {
   const links: { href: string; label: string; exact: boolean }[] = [
     { href: "/", label: "仪表盘", exact: true },
     { href: "/search", label: "搜索", exact: false },
+    { href: "/gallery", label: "相册", exact: false },
     ...(isAdmin ? [{ href: "/admin/users", label: "用户管理", exact: true }] : []),
   ];
 

@@ -25,6 +25,7 @@ model User {
   aiProviders AiProvider[]
   aiSetting   AiSetting?
   aiCallLogs  AiCallLog[]
+  logImages   LogImage[]
 }
 
 model Log {
@@ -44,10 +45,52 @@ model Log {
   parent   Log?     @relation("LogComments", fields: [parentId], references: [id])
   replies  Log[]    @relation("LogComments")
 
+  /// 该条日志附带的图片（排序由 sortOrder 维护）
+  images   LogImage[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id])
+}
+
+/// 日志图片：同一张图在磁盘上保留「原图 / 压缩图 / 缩略图」三份
+/// - original：上传的原始文件，供「查看原图」使用
+/// - medium：长边压到 1600 的 webp，详情预览默认用它
+/// - thumb：长边 480 的 webp，列表/输入区缩略图
+model LogImage {
+  id String @id @default(cuid())
+
+  userId String
+  /// 未附加到任何日志时为空（上传完成但日志还没发出）
+  logId String?
+
+  /// 原始文件名，仅用于展示与无障碍文案
+  name String
+  /// 原图的 MIME 类型（原图按原样保存，不转码）
+  mime String
+  /// 原图字节数
+  size Int
+  /// 压缩图字节数
+  mediumSize Int
+  /// 原图（按 EXIF 方向校正后）的显示宽高，用于前端占位比例
+  width  Int
+  height Int
+
+  /// 相对上传根目录的路径，统一正斜杠分隔，如 images/2026/11/xxx-orig.jpg
+  originalPath String
+  mediumPath   String
+  thumbPath    String
+
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  log  Log? @relation(fields: [logId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([logId])
+  @@index([logId, sortOrder])
 }
 
 model QuickTag {

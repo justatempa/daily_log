@@ -1,12 +1,19 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Calendar from "@/components/calendar/Calendar";
 import Timeline, {
   type LogItem,
   type TimelineHandle,
 } from "@/components/timeline/Timeline";
+import {
+  ImageAttachButton,
+  ImageAttachmentPreview,
+} from "@/components/image/ImageAttachmentBar";
+import { useImageAttachments } from "@/components/image/useImageAttachments";
+import { MAX_IMAGES_PER_LOG, type LogImageInfo } from "@/utils/image";
 import QuickInput, { type QuickInputHandle } from "@/components/quick-input/QuickInput";
 import WordCountStats from "@/components/stats/WordCountStats";
 import { api } from "@/utils/api";
@@ -31,6 +38,10 @@ type PendingLog = {
   date: Date;
   tags: string;
   isTodo: boolean;
+  /** 随日志提交的已上传图片 id */
+  imageIds: string[];
+  /** 乐观展示用的图片信息（重发时原样带上） */
+  images: LogImageInfo[];
   status: "sending" | "failed";
 };
 
@@ -79,6 +90,29 @@ export default function DashboardPage() {
   const timelineRef = useRef<TimelineHandle | null>(null);
   const quickInputRef = useRef<QuickInputHandle | null>(null);
   const mobileInputRef = useRef<HTMLTextAreaElement | null>(null);
+  /** 输入区图片附件（选中即上传，发送时随 imageIds 提交） */
+  const attachments = useImageAttachments(MAX_IMAGES_PER_LOG);
+
+  // 相册 → 仪表盘的深链：?date=yyyy-mm-dd 打开指定日期，?log=<id> 定位并高亮该条日志
+  const searchParams = useSearchParams();
+  const appliedDeepLink = useRef(false);
+  const [highlightLogId, setHighlightLogId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (appliedDeepLink.current) return;
+    appliedDeepLink.current = true;
+
+    const dateParam = searchParams.get("date");
+    if (dateParam) {
+      const parsed = new Date(`${dateParam}T00:00:00`);
+      if (!Number.isNaN(parsed.getTime())) {
+        setSelectedDate(parsed);
+        setStatsMonth(parsed);
+      }
+    }
+    const logParam = searchParams.get("log");
+    if (logParam) setHighlightLogId(logParam);
+  }, [searchParams]);
 
   // 本地时区的当日区间（start=当日 00:00，end=次日 00:00），
   // 由浏览器本地时区定义，服务端不再做时区换算
@@ -159,6 +193,7 @@ export default function DashboardPage() {
         tags: pending.tags,
         isTodo: pending.isTodo,
         clientId: pending.clientId,
+        imageIds: pending.imageIds,
       },
       {
         onSuccess: (created) => {
@@ -182,10 +217,19 @@ export default function DashboardPage() {
                   ...created,
                   date: new Date(created.date),
                   replies: [],
+                  // 图片以服务端返回为准：带图时下面会再刷一次这一天
+                  images: [],
                 },
               ].sort((a, b) => a.date.getTime() - b.date.getTime());
             },
           );
+          if (pending.imageIds.length > 0) {
+            // 图片记录（含尺寸/大小）来自服务端，发完拉一次保证缩略图立刻可见
+            void utils.log.getByDate.invalidate({
+              start: dayStart,
+              end: dayEnd,
+            });
+          }
           setScrollToken((value) => value + 1);
         },
         onError: () => {
@@ -202,7 +246,20 @@ export default function DashboardPage() {
   };
 
   const onSubmit = () => {
-    if (!message.trim() && quickTags.length === 0) return;
+    const readyImages = attachments.items.filter(
+      (item) => item.status === "ready" && item.id,
+    );
+    if (
+      !message.trim() &&
+      quickTags.length === 0 &&
+      readyImages.length === 0
+    ) {
+      return;
+    }
+    if (attachments.uploading) {
+      // 还有图片在路上，先别发，避免图片掉队
+      return;
+    }
     const now = new Date();
     // 日志日期固定为「今天 + 当前时刻」，与日历选中的日期无关
     const pending: PendingLog = {
@@ -212,6 +269,15 @@ export default function DashboardPage() {
       date: now,
       tags: serializeTagGroups(quickTags),
       isTodo,
+      imageIds: readyImages.map((item) => item.id as string),
+      images: readyImages.map((item) => ({
+        id: item.id as string,
+        width: item.width ?? 0,
+        height: item.height ?? 0,
+        name: item.name,
+        size: item.size,
+        mediumSize: item.mediumSize,
+      })),
       status: "sending",
     };
     // 立即写入日志区域
@@ -220,6 +286,7 @@ export default function DashboardPage() {
     setMessage("");
     setIsTodo(false);
     setQuickTags([]);
+    attachments.clear();
     // 发送后自动跳回今天（日历与日期列表同步切回今天所在月份）
     setSelectedDate(now);
     quickInputRef.current?.clearSelection();
@@ -272,6 +339,7 @@ export default function DashboardPage() {
         tags: item.tags,
         isTodo: item.isTodo,
         isTodoDone: false,
+        images: item.images,
         syncStatus: item.status,
       }));
     const logs = [...(logsQuery.data ?? []), ...pendings];
@@ -689,6 +757,7 @@ export default function DashboardPage() {
               }
               onResend={onResend}
               scrollToBottomKey={scrollToken}
+              highlightLogId={highlightLogId}
             />
           </div>
         </div>
@@ -844,6 +913,27 @@ export default function DashboardPage() {
               >
                 {aiPending ? "生成中…" : "AI总结"}
               </button>
+              <Link
+                href="/gallery"
+                aria-label="相册"
+                title="所有日志图片"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-400 dark:hover:border-indigo-400 dark:hover:text-indigo-300"
+              >
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
+                </svg>
+              </Link>
             <button
               type="button"
               onClick={() => setPrivacyMode((prev) => !prev)}
@@ -962,6 +1052,7 @@ export default function DashboardPage() {
             }
             onResend={onResend}
             scrollToBottomKey={scrollToken}
+            highlightLogId={highlightLogId}
           />
         </div>
       </section>
@@ -1008,13 +1099,14 @@ export default function DashboardPage() {
               )}
             </div>
           )}
-          <div className="flex flex-col gap-2 md:flex-row">
+          <ImageAttachmentPreview attachments={attachments} />
+          <div className="flex flex-col gap-2 md:flex-row md:items-end">
             <button
               type="button"
               onClick={() => setIsTodo((prev) => !prev)}
               aria-pressed={isTodo}
               title="标记为待办"
-              className={`rounded-full border px-3 py-2 text-xs transition ${
+              className={`rounded-full border px-3 py-2 text-xs transition md:h-[52px] md:px-4 ${
                 isTodo
                   ? "border-indigo-600 bg-indigo-600 text-white shadow-sm"
                   : "border-slate-200 text-slate-500 hover:border-indigo-200 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-400 dark:hover:border-indigo-400 dark:hover:text-indigo-300"
@@ -1022,24 +1114,38 @@ export default function DashboardPage() {
             >
               Todo
             </button>
+            <ImageAttachButton attachments={attachments} />
             <textarea
               value={message}
               onChange={(event) => setMessage(event.target.value)}
+              onPaste={(event) => {
+                const pasted = Array.from(event.clipboardData.files ?? []);
+                if (pasted.some((file) => file.type.startsWith("image/"))) {
+                  // 直接粘贴截图：交给上传队列，别把二进制当文本塞进输入框
+                  event.preventDefault();
+                  attachments.addFiles(pasted);
+                }
+              }}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault();
                   onSubmit();
                 }
               }}
-              placeholder="写点什么…"
+              placeholder="写点什么…（可直接粘贴截图）"
               aria-label="日志内容"
               className="min-h-[52px] w-full flex-1 resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-indigo-500"
             />
             <button
               type="button"
               onClick={onSubmit}
-              disabled={!message.trim() && quickTags.length === 0}
-              className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={
+                (!message.trim() &&
+                  quickTags.length === 0 &&
+                  attachments.readyIds.length === 0) ||
+                attachments.uploading
+              }
+              className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 md:h-[52px] md:px-6"
             >
               发送
             </button>
@@ -1086,6 +1192,7 @@ export default function DashboardPage() {
               )}
             </div>
           )}
+          <ImageAttachmentPreview attachments={attachments} compact />
           <div className="flex items-end gap-2">
             <button
               type="button"
@@ -1125,10 +1232,18 @@ export default function DashboardPage() {
             >
               待办
             </button>
+            <ImageAttachButton attachments={attachments} compact />
             <textarea
               ref={mobileInputRef}
               value={message}
               onChange={(event) => handleMobileMessageChange(event.target.value)}
+              onPaste={(event) => {
+                const pasted = Array.from(event.clipboardData.files ?? []);
+                if (pasted.some((file) => file.type.startsWith("image/"))) {
+                  event.preventDefault();
+                  attachments.addFiles(pasted);
+                }
+              }}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault();
@@ -1138,12 +1253,17 @@ export default function DashboardPage() {
               placeholder="写点什么…"
               aria-label="日志内容"
               rows={1}
-              className="max-h-[140px] min-h-[40px] w-full flex-1 resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base leading-snug text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-indigo-500"
+              className="max-h-[140px] min-h-[40px] w-full flex-1 resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-base leading-snug text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-indigo-500"
             />
             <button
               type="button"
               onClick={onSubmit}
-              disabled={!message.trim() && quickTags.length === 0}
+              disabled={
+                (!message.trim() &&
+                  quickTags.length === 0 &&
+                  attachments.readyIds.length === 0) ||
+                attachments.uploading
+              }
               aria-label="发送日志"
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
             >

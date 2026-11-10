@@ -1,9 +1,61 @@
 import { TRPCError } from "@trpc/server";
+import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { protectedProcedure, router } from "@/server/api/trpc";
+import { deleteLogImageFiles } from "@/server/image/storage";
 import { parseTagGroups } from "@/utils/tags";
 import { countWords } from "@/utils/wordCount";
 import { AI_SUMMARY_HASHTAG } from "@/utils/aiSummary";
+
+/** 列表/搜索返回的日志结构：带评论和图片 */
+type LogWithImagesAndReplies = Prisma.LogGetPayload<{
+  include: { replies: true; images: true };
+}>;
+
+const MAX_IMAGES_PER_LOG = 9;
+
+/** 从日志正文里截一段做图片说明（去掉换行，空内容用标签占位） */
+function snippetOf(content: string | null | undefined, length = 48) {
+  const text = (content ?? "").replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  return text.length > length ? `${text.slice(0, length)}…` : text;
+}
+
+/**
+ * 把「上传后尚未归属」的图片挂到日志上，按传入顺序写 sortOrder。
+ * 只接受本人名下、且未归属其它日志的图片；已被别处占用或已清理的 id 直接忽略，
+ * 避免因一张图丢掉整条日志。
+ */
+async function attachImages(
+  db: Prisma.TransactionClient,
+  params: { userId: string; logId: string; imageIds?: string[] },
+) {
+  const ids = Array.from(new Set(params.imageIds ?? []))
+    .filter(Boolean)
+    .slice(0, MAX_IMAGES_PER_LOG);
+  if (ids.length === 0) return;
+
+  const images = await db.logImage.findMany({
+    where: { id: { in: ids }, userId: params.userId },
+    select: { id: true, logId: true },
+  });
+  const attachable = new Map(
+    images
+      .filter((image) => image.logId === null || image.logId === params.logId)
+      .map((image) => [image.id, image.logId]),
+  );
+
+  const updates = ids
+    .filter((id) => attachable.has(id))
+    .map((id, index) =>
+      db.logImage.update({
+        where: { id },
+        data: { logId: params.logId, sortOrder: index },
+      }),
+    );
+  if (updates.length === 0) return;
+  await Promise.all(updates);
+}
 
 export const logRouter = router({
   getAll: protectedProcedure.query(({ ctx }) => {
@@ -100,38 +152,14 @@ export const logRouter = router({
           currentPage * pageSize,
         );
 
-        let items: Array<{
-          id: string;
-          userId: string;
-          clientId: string | null;
-          content: string;
-          date: Date;
-          tags: string;
-          isTodo: boolean;
-          isTodoDone: boolean;
-          parentId: string | null;
-          createdAt: Date;
-          updatedAt: Date;
-          replies: Array<{
-            id: string;
-            userId: string;
-            clientId: string | null;
-            content: string;
-            date: Date;
-            tags: string;
-            isTodo: boolean;
-            isTodoDone: boolean;
-            parentId: string | null;
-            createdAt: Date;
-            updatedAt: Date;
-          }>;
-        }> = [];
+        let items: LogWithImagesAndReplies[] = [];
 
         if (pageIds.length > 0) {
           const fetchedItems = await ctx.db.log.findMany({
             where: { id: { in: pageIds } },
             include: {
               replies: { orderBy: { createdAt: "asc" } },
+              images: { orderBy: { sortOrder: "asc" } },
             },
           });
           const itemMap = new Map(fetchedItems.map((item) => [item.id, item]));
@@ -164,6 +192,7 @@ export const logRouter = router({
               take: pageSize,
               include: {
                 replies: { orderBy: { createdAt: "asc" } },
+                images: { orderBy: { sortOrder: "asc" } },
               },
             });
 
@@ -192,8 +221,63 @@ export const logRouter = router({
         orderBy: { createdAt: "asc" },
         include: {
           replies: { orderBy: { createdAt: "asc" } },
+          images: { orderBy: { sortOrder: "asc" } },
         },
       });
+    }),
+  /**
+   * 相册：按「日志日期」倒序分页返回所有已归属日志的图片。
+   * 同一天的多张图按该日志内的 sortOrder 排序；未归属日志的上传图（草稿/孤儿）不进相册。
+   */
+  listImages: protectedProcedure
+    .input(
+      z.object({
+        page: z.number().int().min(1).default(1),
+        pageSize: z.number().int().min(1).max(100).default(48),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const where: Prisma.LogImageWhereInput = {
+        userId: ctx.session!.user.id,
+        logId: { not: null },
+      };
+      const [total, rows] = await Promise.all([
+        ctx.db.logImage.count({ where }),
+        ctx.db.logImage.findMany({
+          where,
+          orderBy: [{ log: { date: "desc" } }, { sortOrder: "asc" }, { createdAt: "asc" }],
+          skip: (input.page - 1) * input.pageSize,
+          take: input.pageSize,
+          select: {
+            id: true,
+            width: true,
+            height: true,
+            name: true,
+            size: true,
+            mediumSize: true,
+            logId: true,
+            log: { select: { id: true, date: true, content: true } },
+          },
+        }),
+      ]);
+
+      return {
+        items: rows.map((row) => ({
+          id: row.id,
+          width: row.width,
+          height: row.height,
+          name: row.name,
+          size: row.size,
+          mediumSize: row.mediumSize,
+          logId: row.log?.id ?? row.logId ?? "",
+          logDate: row.log?.date ?? null,
+          logTitle: snippetOf(row.log?.content),
+        })),
+        total,
+        page: input.page,
+        pageSize: input.pageSize,
+        hasMore: input.page * input.pageSize < total,
+      };
     }),
   /**
    * 返回某月内有主日志的所有日期时间戳，供日历标记小圆点。
@@ -292,11 +376,15 @@ export const logRouter = router({
            * 服务端若已存在同 clientId 记录则直接返回，避免重复插入。
            */
           clientId: z.string().optional(),
+          /** 已上传、尚未归属日志的图片 id（按展示顺序传入） */
+          imageIds: z.array(z.string()).max(MAX_IMAGES_PER_LOG).optional(),
         })
         .refine(
           (data) =>
-            data.content.trim().length > 0 || data.tags.trim().length > 0,
-          { message: "content or tags required" },
+            data.content.trim().length > 0 ||
+            data.tags.trim().length > 0 ||
+            (data.imageIds?.length ?? 0) > 0,
+          { message: "content, tags or images required" },
         ),
     )
     .mutation(async ({ ctx, input }) => {
@@ -309,10 +397,16 @@ export const logRouter = router({
           if (existing.userId !== ctx.session!.user.id) {
             throw new TRPCError({ code: "FORBIDDEN" });
           }
+          // 上一次可能「日志已插入但响应丢失」：补挂本次带来的图片（已挂过的会被忽略）
+          await attachImages(ctx.db, {
+            userId: ctx.session!.user.id,
+            logId: existing.id,
+            imageIds: input.imageIds,
+          });
           return existing;
         }
       }
-      return ctx.db.log.create({
+      const created = await ctx.db.log.create({
         data: {
           userId: ctx.session!.user.id,
           content: input.content ?? "",
@@ -324,6 +418,12 @@ export const logRouter = router({
           clientId: input.clientId ?? null,
         },
       });
+      await attachImages(ctx.db, {
+        userId: ctx.session!.user.id,
+        logId: created.id,
+        imageIds: input.imageIds,
+      });
+      return created;
     }),
   toggleTodo: protectedProcedure
     .input(z.object({ id: z.string() }))
@@ -378,10 +478,30 @@ export const logRouter = router({
       if (!log) {
         throw new TRPCError({ code: "NOT_FOUND" });
       }
+      const replyIds = (
+        await ctx.db.log.findMany({
+          where: { parentId: input.id, userId: ctx.session!.user.id },
+          select: { id: true },
+        })
+      ).map((reply) => reply.id);
+      const targetIds = [input.id, ...replyIds];
+
+      // 先拿到图片记录，删完库再清磁盘，避免留下孤儿文件
+      const images = await ctx.db.logImage.findMany({
+        where: { logId: { in: targetIds } },
+        select: { originalPath: true, mediumPath: true, thumbPath: true },
+      });
+
       await ctx.db.log.deleteMany({
         where: { parentId: input.id, userId: ctx.session!.user.id },
       });
       await ctx.db.log.delete({ where: { id: input.id } });
+      await ctx.db.logImage.deleteMany({
+        where: { logId: { in: targetIds } },
+      });
+      await deleteLogImageFiles(images).catch((error) => {
+        console.error("[log-delete] 图片文件清理失败", error);
+      });
       return { id: input.id };
     }),
   import: protectedProcedure
